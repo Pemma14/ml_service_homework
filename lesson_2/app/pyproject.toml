@@ -1,0 +1,9 @@
+[project]
+name = "ml-service-homework"
+version = "0.1.0"
+description = "Homework for Lesson 2"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+]
