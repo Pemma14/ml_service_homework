@@ -1,11 +1,11 @@
 services:
   app:
     build: ./app/
-    image: ml-service-api:latest
+    image: ml-service-api:1.0.0
     container_name: ml-service-api
     restart: unless-stopped
     env_file:
-      - ./.env
+      - ../.env
     volumes:
       - ./app:/app
     depends_on:
@@ -24,6 +24,8 @@ services:
     image: postgres:16-alpine
     container_name: ml-service-db
     restart: unless-stopped
+    env_file:
+      - ../.env
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
@@ -35,7 +37,7 @@ services:
 
 
   web-proxy:
-    image: nginx:latest
+    image: nginx:1.27.x
     container_name: ml-service-nginx
     restart: unless-stopped
     ports:
@@ -54,6 +56,8 @@ services:
     image: rabbitmq:3.13.1-management
     hostname: rabbitmq
     restart: always
+    env_file:
+      - ../.env
     environment:
       - RABBITMQ_DEFAULT_USER=${MQ_USER}
       - RABBITMQ_DEFAULT_PASS=${MQ_PASSWORD}
