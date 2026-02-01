@@ -1,13 +1,13 @@
 services:
   app:
-    build: ./lesson_2/app/
+    build: ./app/
     image: ml-service-api:1.0.0
     container_name: ml-service-api
     restart: unless-stopped
     env_file:
       - .env
     volumes:
-      - ./lesson_2/app:/app
+      - ./app:/app
     depends_on:
       - database
     networks:
@@ -47,15 +47,15 @@ services:
       app:
         condition: service_healthy
     volumes:
-      - ./lesson_2/nginx/nginx.conf:/etc/nginx/nginx.conf
-      # - ./lesson_2/nginx/ssl:/etc/nginx/ssl
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      # - ./nginx/ssl:/etc/nginx/ssl
     networks:
       - ml-service-network
 
   rabbitmq:
     image: rabbitmq:3.13.1-management
     hostname: rabbitmq
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -63,7 +63,7 @@ services:
       - RABBITMQ_DEFAULT_PASS=${MQ_PASSWORD}
       - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=${RMQ_ERL_ARGS}
     volumes:
-      - ./lesson_2/rabbitmq:/var/lib/rabbitmq
+      - ./rabbitmq:/var/lib/rabbitmq
     ports:
       - 15672:15672  # порт для админки в браузере
       - 5672:5672 # порт для передачи самих сообщений
