@@ -1,43 +1,50 @@
 services:
   app:
-    build: ./app/
-    image: ml-service-api:1.0.0
+    build:
+      #чтобы не было проблем с путями в докере
+      context: .
+      dockerfile: app/Dockerfile
+    image: ml-service-api:0.1.0
     container_name: ml-service-api
     restart: unless-stopped
-    env_file:
-      - .env
+    environment: #для проверки домашки (без .env файла)
+      - DB__HOST=database
+      - DB__USER=${DB__USER:-pema}
+      - DB__PASSWORD=${DB__PASSWORD:-password}
+      - DB__NAME=${DB__NAME:-ml_service}
+      - APP__DEBUG=${APP__DEBUG:-True}
+      - APP__MODE=${APP__MODE:-DEV}
     volumes:
-      - ./app:/app
+      - ./app:/src/app
     depends_on:
       - database
     networks:
       - ml-service-network
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+      #чтобы использовать питоновский urllib без установки доп зависимостей
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
 
   database:
     image: postgres:16-alpine
     container_name: ml-service-db
     restart: unless-stopped
-    env_file:
-      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB__USER:-pema}
+      - POSTGRES_PASSWORD=${DB__PASSWORD:-password}
+      - POSTGRES_DB=${DB__NAME:-ml_service}
     networks:
       - ml-service-network
 
 
   web-proxy:
-    image: nginx:1.27.x
+    image: nginx:1.27-alpine
     container_name: ml-service-nginx
     restart: unless-stopped
     ports:
@@ -56,14 +63,12 @@ services:
     image: rabbitmq:3.13.1-management
     hostname: rabbitmq
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      - RABBITMQ_DEFAULT_USER=${MQ_USER}
-      - RABBITMQ_DEFAULT_PASS=${MQ_PASSWORD}
-      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=${RMQ_ERL_ARGS}
+      - RABBITMQ_DEFAULT_USER=${MQ__USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${MQ__PASSWORD:-guest}
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=${MQ__ERL_ARGS:--rabbit disk_free_limit 2147483648}
     volumes:
-      - ./rabbitmq:/var/lib/rabbitmq
+      - rabbitmq:/var/lib/rabbitmq
     ports:
       - 15672:15672  # порт для админки в браузере
       - 5672:5672 # порт для передачи самих сообщений
@@ -71,7 +76,9 @@ services:
       - ml-service-network
 
 volumes:
-  postgres_data: # объявляем виртуальный диск для базы данных
+  postgres_data: # виртуальный диск для базы данных
+  rabbitmq: #вирутальный диск для RabbitMQ
+
 
 networks:
   ml-service-network: # объявляем общую сеть

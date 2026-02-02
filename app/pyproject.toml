@@ -1,9 +1,18 @@
 [project]
 name = "ml-service-homework"
 version = "0.1.0"
-description = "Homework for Lesson 2"
+description = "Homework for Lesson 3"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0",
+    "sqlalchemy==2.0.45",
+    "pydantic-settings==2.12.0",
+    "pydantic[email]==2.12.5",
+    "python-dotenv==1.2.1",
+    "psycopg[binary]==3.2.4",
+    "email-validator",
 ]
+
+[tool.setuptools]
+packages = []
