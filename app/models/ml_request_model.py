@@ -1,34 +1,45 @@
-from __future__ import annotations
-
-from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from typing import Any, Optional, Dict, TYPE_CHECKING
-from uuid import UUID, uuid4
+from typing import Optional, TYPE_CHECKING, Any
 
-from .base_model import BaseEntity
+from sqlalchemy import JSON, ForeignKey, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base_model import Base, int_pk
 
 if TYPE_CHECKING:
-    pass
+    from app.models import Transaction, User, MLModel
 
-class RequestStatus(str, Enum):
-    CREATED = "created"
-    PROCESSING = "pending"
-    SUCCESS = "success"
-    ERROR = "fail"
 
-@dataclass
-class MLRequest(BaseEntity):
-    user_id: UUID = field(default_factory=uuid4)
-    input_data: Dict[str, Any] = field(default_factory=dict)
-    prediction: Optional[Any] = None
-    status: RequestStatus = RequestStatus.CREATED
-    cost: float = 10.0
-    error_message: Optional[str] = None
+class MLRequestStatus(str, Enum):
+    success = "success"
+    fail = "fail"
+    pending = "pending"
 
-    def complete(self, result: Any):
-        self.prediction = result
-        self.status = RequestStatus.SUCCESS
 
-    def fail(self, message: str):
-        self.status = RequestStatus.ERROR
-        self.error_message = message
+class MLRequest(Base):
+    __tablename__ = "ml_request"
+
+    id: Mapped[int_pk]
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+    model_id: Mapped[int] = mapped_column(ForeignKey("ml_model.id"), nullable=False, index=True)
+    input_data: Mapped[Any] = mapped_column(JSON, nullable=False)
+    prediction: Mapped[Any] = mapped_column(JSON, nullable=True)
+    errors: Mapped[Any] = mapped_column(JSON, nullable=True)
+    status: Mapped[MLRequestStatus] = mapped_column(nullable=False)
+    cost: Mapped[float] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=datetime.now,
+        server_default=text('now()'),
+        nullable=False,
+        index=True
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+    # Связи с другими таблицами
+    user: Mapped["User"] = relationship(back_populates="ml_requests")
+    ml_model: Mapped["MLModel"] = relationship(back_populates="ml_requests")
+    transaction: Mapped[Optional["Transaction"]] = relationship(
+        back_populates="ml_request",
+        uselist=False,
+    )

@@ -1,18 +1,12 @@
 FROM python:3.12-slim
 
 # Устанавливаем uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.5.26 /uv /uv/bin/uv
 
-WORKDIR /app
 
-# Копируем файл зависимостей
-COPY pyproject.toml /app/
-
-# Устанавливаем зависимости
-RUN /uv/bin/uv pip install --system --no-cache -r pyproject.toml
-
+WORKDIR /src
+COPY app/pyproject.toml /src/
+RUN /uv/bin/uv pip install --system --no-cache -r /src/pyproject.toml
 EXPOSE 8000
-
-COPY . /app/
-
-CMD ["python", "main.py"]
+COPY app /src/app
+CMD ["python", "-m", "app.main"]
