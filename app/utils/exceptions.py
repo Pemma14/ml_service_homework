@@ -48,6 +48,23 @@ class MLInvalidDataException(AppException):
         if errors:
             self.detail = {"message": self.detail, "errors": errors}
 
+# Исключения для аутентификации
+class TokenAbsentException(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Токен отсутствует"
+
+class IncorrectTokenFormatException(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Неверный формат токена"
+
+class TokenExpiredException(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Токен истек"
+
+class IncorrectEmailOrPasswordException(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Неверная почта или пароль"
+
 # Инфраструктурные ошибки
 class InternalServerErrorException(AppException):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -57,8 +74,10 @@ class ServiceUnavailableException(AppException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     detail = "Service unavailable"
 
-# Для реализации строгой валидации данных
-#class CannotAddDataToDatabase(AppException):
-    #status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    #detail = "Не удалось добавить запись в базу данных"
+# Ошибки Телеграм-бота
+class BotException(Exception):
+    """Базовое исключение для бота."""
+    pass
+
+
 

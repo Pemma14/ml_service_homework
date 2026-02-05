@@ -54,14 +54,16 @@ class SeedSettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    app: AppSettings
-    db: DbSettings
+    app: AppSettings = AppSettings()
+    db: DbSettings = DbSettings()
     seed: SeedSettings = SeedSettings()
+    bot_token: str = "your_bot_token_here"
+    api_url: str = "http://app:8000"
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),
         env_file_encoding="utf-8",
-        case_sensitive=False,  # Изменим на False для надежности
+        case_sensitive=False,
         extra="ignore",
         env_nested_delimiter="__",
         env_prefix=""
@@ -74,6 +76,5 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# Обратная совместимость (использовала в файлах переменную settings вместо функции get_settings())
+# Создадим объект настроек
 settings = get_settings()
-

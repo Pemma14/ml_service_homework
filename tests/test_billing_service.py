@@ -91,7 +91,7 @@ def test_process_prediction_payment_atomicity(session):
     # 2. Выполняем списание
     cost = 12.5
     input_data = [{"features": [1, 2, 3, 4, 5]}]
-    predictions = ["Result: Responder"]
+    predictions = ["выраженных побочных ответов не будет с вероятностью 0.85, выраженные побочные эффекты будут с вероятностью 0.15"]
 
     request = process_prediction_payment(
         session=session,

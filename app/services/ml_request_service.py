@@ -2,7 +2,6 @@ import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
-from app.config import settings
 from app.models import User, MLRequest, MLModel
 from app.schemas import SMLPredictionResponse
 from app.ml import ml_engine
@@ -26,7 +25,7 @@ def predict(session: Session, items: List[Dict[str, Any]], user: User, model_id:
         if not model:
             raise MLModelNotFoundException
     else:
-        # Если model_id не передан, берем первую активную модель (для упрощения)
+        # Если model_id не передан, берем первую активную модель
         query = select(MLModel).where(MLModel.is_active == True)
         model = session.execute(query).scalars().first()
         if not model:
@@ -38,21 +37,26 @@ def predict(session: Session, items: List[Dict[str, Any]], user: User, model_id:
     check_balance(session, user.id, total_cost)
     logger.info(f"Пользователь {user.id}: Баланс подтвержден ({total_cost}). Переходим к валидации данных.")
 
-    # Валидация входных данных (ML-сервис)
-    valid_items = ml_engine.validate_features(items)
+    # Подготовка данных для предсказания и сохранения (конвертация Pydantic в dict)
+    prepared_items = []
+    for item in items:
+        if hasattr(item, "model_dump"):
+            prepared_items.append(item.model_dump(by_alias=True))
+        else:
+            prepared_items.append(item)
 
     # Выполнение предсказания (ML-сервис)
-    logger.info(f"Пользователь {user.id}: Запуск ML-модели (LogisticRegression)...")
-    predictions = ml_engine.predict(valid_items)
+    logger.info(f"Пользователь {user.id}: Запуск ML-модели...")
+    predictions = ml_engine.predict(prepared_items)
     logger.info(f"Пользователь {user.id}: Предсказание успешно получено.")
 
-    # Списании средств (Billing-сервис)
+    # Списании средств и сохранение истории (Billing-сервис)
     process_prediction_payment(
         session=session,
         user=user,
         model_id=model_id,
         cost=total_cost,
-        input_data=items,
+        input_data=prepared_items,
         predictions=predictions
     )
     logger.info(f"Пользователь {user.id}: Средства списаны.")

@@ -59,6 +59,7 @@ services:
     networks:
       - ml-service-network
 
+
   rabbitmq:
     image: rabbitmq:3.13.1-management
     hostname: rabbitmq
@@ -74,6 +75,24 @@ services:
       - 5672:5672 # порт для передачи самих сообщений
     networks:
       - ml-service-network
+
+
+  bot:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: ml-service-bot
+    restart: unless-stopped
+    command: ["python", "-m", "app.bot.main"]
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN:-secret_token}
+      - API_URL=http://app:8000
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - ml-service-network
+
 
 volumes:
   postgres_data: # виртуальный диск для базы данных

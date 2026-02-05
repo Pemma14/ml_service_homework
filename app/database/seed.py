@@ -6,6 +6,7 @@ from app.models import (
     User, UserRole, Transaction, TransactionType, TransactionStatus,
     MLRequest, MLRequestStatus, MLModel
 )
+from app.utils.auth import get_password_hash
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ def seed_db(session: Session):
             "first_name": "Admin",
             "last_name": "System",
             "email": settings.seed.ADMIN_EMAIL,
-            "hashed_password": settings.seed.ADMIN_PASSWORD,
+            "hashed_password": get_password_hash(settings.seed.ADMIN_PASSWORD),
             "phone_number": "+70000000000",
             "balance": 1000.0,
             "role": UserRole.admin,
@@ -60,7 +61,7 @@ def seed_db(session: Session):
             "first_name": "Demo",
             "last_name": "User",
             "email": settings.seed.DEMO_EMAIL,
-            "hashed_password": settings.seed.DEMO_PASSWORD,
+            "hashed_password": get_password_hash(settings.seed.DEMO_PASSWORD),
             "phone_number": "+79991234567",
             "balance": 100.0,
             "role": UserRole.user,
@@ -99,8 +100,16 @@ def seed_db(session: Session):
                     test_request = MLRequest(
                         user_id=new_user.id,
                         model_id=log_reg.id,
-                        input_data={"features": [1.0, 2.0, 3.0, 4.0, 5.0]},
-                        prediction={"result": "Responder", "confidence": 0.85},
+                        input_data=[{
+                            "Возраст": 35.0,
+                            "ВНН/ПП": 1,
+                            "Клозапин": 0,
+                            "CYP2C19 1/2": 0,
+                            "CYP2C19 1/17": 1,
+                            "CYP2C19 *17/*17": 0,
+                            "CYP2D6 1/3": 0
+                        }],
+                        prediction=["выраженных побочных ответов не будет с вероятностью 0.85, выраженные побочные эффекты будут с вероятностью 0.15"],
                         cost=log_reg.cost,
                         status=MLRequestStatus.success,
                         completed_at=datetime.now()

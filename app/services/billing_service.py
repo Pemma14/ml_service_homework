@@ -20,7 +20,11 @@ from app.utils import InsufficientFundsException
 logger = logging.getLogger(__name__)
 
 
-def create_replenishment_request(session: Session, user: User, transaction_data: STransactionCreate) -> Transaction:
+def create_replenishment_request(
+    session: Session,
+    user: User,
+    transaction_data: STransactionCreate
+) -> Transaction:
     """Создать запрос на пополнение баланса."""
     # В дев режиме (транзакция сразу одобрена)
     if settings.app.MODE == "DEV":
@@ -96,8 +100,7 @@ def process_prediction_payment(
     predictions: list
 ) -> MLRequest:
     """
-    Атомарная операция: списание средств + запись в историю ML + запись в транзакции.
-    Использует атомарный UPDATE для предотвращения race condition.
+    Атомарная операция: списание средств + запись в историю ML + запись в транзакции (предотвращения race condition).
     """
     # 1. Списываем баланс пользователя атомарно в БД
     result = session.execute(

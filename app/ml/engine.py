@@ -1,79 +1,97 @@
 import logging
+import os
 from typing import Any, Dict, List
+import joblib
+import pandas as pd
 
-from app.utils import MLInferenceException, MLInvalidDataException, MLModelLoadException
+from app.utils import MLInferenceException, MLModelLoadException
 
 logger = logging.getLogger(__name__)
 
 class MLEngine:
     """
-    Сервис для работы с ML-моделью (scikit-learn).
-    Отвечает исключительно за загрузку модели, препроцессинг и инференс.
+    Сервис для работы с ML-моделью. Отвечает за загрузку модели и выполнение предсказаний.
     """
 
     def __init__(self):
         try:
-            # В реальном приложении здесь была бы загрузка .pkl файла
-            # self.model = joblib.load("model.pkl")
-            self.model = None
-            logger.info("ML Engine инициализирован (режим заглушки для LogisticRegression)")
+            model_path = os.path.join(os.path.dirname(__file__), "model.pkl")
+            if os.path.exists(model_path):
+                self.model = joblib.load(model_path)
+                logger.info(f"ML модель успешно загружена из {model_path}")
+            else:
+                self.model = None
+                logger.warning(f"Файл модели не найден по пути {model_path}, включен режим заглушки")
         except Exception as e:
             logger.critical(f"Критическая ошибка при инициализации ML-модели: {e}")
             raise MLModelLoadException()
 
-    def predict(self, items: List[Dict[str, Any]]) -> List[str]:
-        """
-        Инференс ML-модели.
-        """
+    def predict(self, items: List[Any]) -> List[str]:
         try:
-            return self._run_inference(items)
+            # Конвертируем объекты Pydantic в словари, если нужно
+            data_to_predict = []
+            for item in items:
+                if hasattr(item, "model_dump"):
+                    data_to_predict.append(item.model_dump(by_alias=True))
+                else:
+                    data_to_predict.append(item)
+
+            return self._run_inference(data_to_predict)
         except Exception as e:
             logger.error(f"Ошибка во время выполнения инференса: {e}")
             raise MLInferenceException()
 
     def _run_inference(self, items: List[Dict[str, Any]]) -> List[str]:
-        """
-        Синхронная логика работы scikit-learn.
-        """
         try:
+            if self.model is None:
+                return [
+                    "выраженных побочных ответов не будет с вероятностью 0.85, "
+                    "выраженные побочные эффекты будут с вероятностью 0.15"
+                    for _ in items
+                ]
+
+            # Создаем DataFrame для сохранения правильного порядка и имен колонок
+            features_order = [
+                'Возраст', 'ВНН/ПП', 'Клозапин',
+                'CYP2C19 1/2', 'CYP2C19 1/17', 'CYP2C19 *17/*17', 'CYP2D6 1/3'
+            ]
+
+            df = pd.DataFrame(items)
+
+            # Добавляем недостающие колонки (если есть) и выстраиваем их в нужном порядке
+            for col in features_order:
+                if col not in df.columns:
+                    df[col] = 0
+
+            df = df[features_order]
+
             results = []
-            for item in items:
-                features = item.get("features")
-                # Имитация работы логистической регрессии
-                # В реальности: prediction = self.model.predict([features])[0]
-                probability = 0.75  # Заглушка: вероятность ответа на лечение
-                label = "Responder" if probability > 0.5 else "Non-responder"
-                results.append(f"Result: {label} (confidence: {probability})")
+            # Пробуем получить вероятности для оценки уверенности
+            try:
+                probabilities = self.model.predict_proba(df)
+                for prob in probabilities:
+                    # В scikit-learn для бинарной классификации prob[0] - вероятность класса 0, prob[1] - класса 1
+                    # Мы выяснили, что классы модели [0, 1]
+                    p0 = round(float(prob[0]), 2)
+                    p1 = round(float(prob[1]), 2)
+                    results.append(
+                        f"выраженные побочные эффекты будут с вероятностью {p1}"
+                    )
+            except (AttributeError, Exception) as e:
+                logger.warning(f"Модель не поддерживает predict_proba или произошла ошибка: {e}")
+                # Если модель не поддерживает predict_proba, используем просто predict
+                predictions = self.model.predict(df)
+                for pred in predictions:
+                    if pred == 0:
+                        results.append("выраженных побочных ответов не будет")
+                    else:
+                        results.append("выраженные побочные эффекты будут")
 
             return results
         except Exception as e:
-            # Здесь ловим ошибки самой модели или данных (например, ValueError от sklearn)
             logger.error(f"Ошибка внутри _run_inference: {e}")
             raise MLInferenceException()
 
-    @staticmethod
-    def validate_features(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Специфичная для модели валидация входных признаков.
-        Если есть ошибки, выбрасывает MLInvalidDataException.
-        """
-        valid_items = []
-        errors = []
-        for i, item in enumerate(items):
-            features = item.get("features")
-            # Допустим, для нашей регрессии нужно ровно 5 числовых признаков
-            if not features or not isinstance(features, list):
-                errors.append({"index": i, "error": "Features must be a list"})
-            elif len(features) != 5:
-                errors.append({"index": i, "error": f"Model requires 5 features, got {len(features)}"})
-            else:
-                valid_items.append(item)
-
-        if errors:
-            logger.warning(f"Обнаружены ошибки в данных ({len(errors)} шт.). Валидация не пройдена.")
-            raise MLInvalidDataException(errors=errors)
-
-        return valid_items
 
 # Создаем единственный экземпляр (Singleton) движка
 ml_engine = MLEngine()

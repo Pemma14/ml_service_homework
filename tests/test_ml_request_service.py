@@ -3,7 +3,6 @@ from app.models import User, MLModel, MLRequest
 from app.services.ml_request_service import predict, get_all_history
 from app.schemas import SUserRegister
 from app.services.user_service import create_user
-from app.config import settings
 
 def test_predict_full_flow(session):
     """Интеграционный тест полного цикла предсказания с биллингом."""
@@ -31,7 +30,15 @@ def test_predict_full_flow(session):
     session.commit()
 
     # Параметры запроса
-    items = [{"features": [1.0, 2.0, 3.0, 4.0, 5.0]}]
+    items = [{
+        "Возраст": 40.0,
+        "ВНН/ПП": 1,
+        "Клозапин": 0,
+        "CYP2C19 1/2": 0,
+        "CYP2C19 1/17": 0,
+        "CYP2C19 *17/*17": 1,
+        "CYP2D6 1/3": 0
+    }]
 
     # 2. Вызов оркестратора
     response = predict(session, items, user)
