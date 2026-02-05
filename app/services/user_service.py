@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.models import MLRequest, User
 from app.schemas import SUserRegister, SUserUpdate
-from app.utils import UserAlreadyExistsException, UserIsNotPresentException
+from app.utils import (
+    UserAlreadyExistsException,
+    UserIsNotPresentException,
+    IncorrectEmailOrPasswordException
+)
+from app.utils.auth import get_password_hash, verify_password
 
 
 def get_all_users(session: Session) -> List[User]:
@@ -35,16 +40,16 @@ def create_user(session: Session, user_data: Union[SUserRegister, User]) -> User
     if isinstance(user_data, User): #для тестов
         new_user = user_data
     else:
-        # Проверяем, существует ли пользователь (только для новых регистраций через схему)
+        # Проверяем, существует ли пользователь
         query = select(User).where(User.email == user_data.email)
         result = session.execute(query)
         if result.scalar_one_or_none():
             raise UserAlreadyExistsException
 
-        # Сохраняем пользователя
+        # Сохраняем пользователя с хешированным паролем
         user_dict = user_data.model_dump()
         password = user_dict.pop("password")
-        user_dict["hashed_password"] = password  # Пока просто сохраняем как есть
+        user_dict["hashed_password"] = get_password_hash(password)
         new_user = User(**user_dict)
 
     session.add(new_user)
@@ -106,5 +111,15 @@ def get_user_stats(session: Session, user_id: int) -> Dict[str, Any]:
     )
     result = session.execute(query).mappings().one()
     return dict(result)
+
+
+def authenticate_user(session: Session, email: EmailStr, password: str) -> User:
+    """Аутентификация пользователя."""
+    user = get_user_by_email(session, email)
+
+    if not user or not verify_password(password, user.hashed_password):
+        raise IncorrectEmailOrPasswordException
+
+    return user
 
 

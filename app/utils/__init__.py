@@ -10,5 +10,10 @@ from app.utils.exceptions import (
     ServiceUnavailableException,
     UserAlreadyExistsException,
     UserIsNotPresentException,
+    TokenAbsentException,
+    IncorrectTokenFormatException,
+    TokenExpiredException,
+    IncorrectEmailOrPasswordException,
 )
 from app.utils.handlers import setup_exception_handlers
+from app.utils.logger import setup_logging

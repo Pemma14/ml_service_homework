@@ -37,7 +37,11 @@ class SUserUpdate(SBase):
     )
 
 
+class SUserAuth(SBase):
+    email: EmailStr = Field(..., description="Электронная почта")
+    password: str = Field(..., description="Пароль")
+
+
 class SUserWithHistory(SUser):
-    # Используем Forward Reference или импорт, если нужно,
-    # но пока просто опишем базово, чтобы избежать циклов
+    # Используем Forward Reference или импорт, если нужно,но пока просто опишем базово, чтобы избежать циклов
     pass
