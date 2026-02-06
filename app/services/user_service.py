@@ -4,6 +4,7 @@ from pydantic import EmailStr
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.auth.hash_password import HashPassword
 from app.models import MLRequest, User
 from app.schemas import SUserRegister, SUserUpdate
 from app.utils import (
@@ -11,7 +12,8 @@ from app.utils import (
     UserIsNotPresentException,
     IncorrectEmailOrPasswordException
 )
-from app.utils.auth import get_password_hash, verify_password
+
+hasher = HashPassword()
 
 
 def get_all_users(session: Session) -> List[User]:
@@ -49,7 +51,7 @@ def create_user(session: Session, user_data: Union[SUserRegister, User]) -> User
         # Сохраняем пользователя с хешированным паролем
         user_dict = user_data.model_dump()
         password = user_dict.pop("password")
-        user_dict["hashed_password"] = get_password_hash(password)
+        user_dict["hashed_password"] = hasher.create_hash(password)
         new_user = User(**user_dict)
 
     session.add(new_user)
@@ -117,7 +119,7 @@ def authenticate_user(session: Session, email: EmailStr, password: str) -> User:
     """Аутентификация пользователя."""
     user = get_user_by_email(session, email)
 
-    if not user or not verify_password(password, user.hashed_password):
+    if not user or not hasher.verify_hash(password, user.hashed_password):
         raise IncorrectEmailOrPasswordException
 
     return user
