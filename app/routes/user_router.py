@@ -7,6 +7,7 @@ from app.models import User
 from app.routes.dependencies import get_current_user
 from app.schemas.user_schemas import SUserRegister, SUserAuth, SUser
 from app.services import user_service
+from app.auth.jwt_handler import create_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +31,21 @@ async def register_user(
 @router.post(
     "/login",
     summary="Вход в систему",
-    description="Аутентификация пользователя по email и паролю. Возвращает ID пользователя для последующих запросов.",
-    response_description="Результат аутентификации и ID пользователя"
+    description="Аутентификация пользователя по email и паролю. Возвращает JWT-токен для последующих запросов.",
+    response_description="Результат аутентификации и JWT-токен"
 )
 async def auth_user(
     user_data: SUserAuth,
     session: Session = Depends(get_session)
 ):
     user = user_service.authenticate_user(session, user_data.email, user_data.password)
+    access_token = create_access_token(user=str(user.id))
     logger.info(f"User logged in: {user_data.email}")
-    return {"message": "Вы успешно вошли в систему", "user_id": user.id}
+    return {
+        "message": "Вы успешно вошли в систему",
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 @router.post(
     "/logout",
@@ -55,7 +61,7 @@ async def logout_user():
     "/me",
     response_model=SUser,
     summary="Профиль пользователя",
-    description="Возвращает детальную информацию о текущем авторизованном пользователе на основе переданного ID.",
+    description="Возвращает детальную информацию о текущем авторизованном пользователе на основе JWT-токена.",
     response_description="Данные текущего пользователя"
 )
 async def read_users_me(current_user: User = Depends(get_current_user)):

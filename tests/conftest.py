@@ -3,6 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models import Base
 from app.database import get_session
+from fastapi.testclient import TestClient
+from app.main import app
 
 # Используем SQLite в памяти для тестов
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -29,3 +31,13 @@ def session(engine):
     session.close()
     transaction.rollback()
     connection.close()
+
+@pytest.fixture(scope="function")
+def client(session):
+    def override_get_session():
+        yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    with TestClient(app) as c:
+        yield c
+    del app.dependency_overrides[get_session]

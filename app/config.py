@@ -14,6 +14,13 @@ class AppSettings(BaseModel):
     MODE: str = "DEV"
 
 
+class AuthSettings(BaseModel):
+    SECRET_KEY: str = "your_secret_key_here_make_it_long_and_secure"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    COOKIE_NAME: str = "access_token"
+
+
 class DbSettings(BaseModel):
     HOST: str = "database"
     PORT: int = 5432
@@ -57,6 +64,7 @@ class Settings(BaseSettings):
     app: AppSettings = AppSettings()
     db: DbSettings = DbSettings()
     seed: SeedSettings = SeedSettings()
+    auth: AuthSettings = AuthSettings()
     bot_token: str = "your_bot_token_here"
     api_url: str = "http://app:8000"
 

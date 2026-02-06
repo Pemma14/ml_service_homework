@@ -6,10 +6,12 @@ from app.models import (
     User, UserRole, Transaction, TransactionType, TransactionStatus,
     MLRequest, MLRequestStatus, MLModel
 )
-from app.utils.auth import get_password_hash
+from app.auth.hash_password import HashPassword
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+hasher = HashPassword()
 
 def seed_db(session: Session):
     """Наполнение базы данных начальными данными."""
@@ -51,7 +53,7 @@ def seed_db(session: Session):
             "first_name": "Admin",
             "last_name": "System",
             "email": settings.seed.ADMIN_EMAIL,
-            "hashed_password": get_password_hash(settings.seed.ADMIN_PASSWORD),
+            "hashed_password": hasher.create_hash(settings.seed.ADMIN_PASSWORD),
             "phone_number": "+70000000000",
             "balance": 1000.0,
             "role": UserRole.admin,
@@ -61,7 +63,7 @@ def seed_db(session: Session):
             "first_name": "Demo",
             "last_name": "User",
             "email": settings.seed.DEMO_EMAIL,
-            "hashed_password": get_password_hash(settings.seed.DEMO_PASSWORD),
+            "hashed_password": hasher.create_hash(settings.seed.DEMO_PASSWORD),
             "phone_number": "+79991234567",
             "balance": 100.0,
             "role": UserRole.user,
