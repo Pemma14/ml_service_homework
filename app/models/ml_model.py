@@ -1,3 +1,5 @@
+from decimal import Decimal
+from sqlalchemy import Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, TYPE_CHECKING
 from app.models.base_model import Base, int_pk, str_uniq
@@ -14,7 +16,7 @@ class MLModel(Base):
     description: Mapped[str] = mapped_column(nullable=True)
     version: Mapped[str] = mapped_column(default="1.0.0")
     is_active: Mapped[bool] = mapped_column(default=True)
-    cost: Mapped[float] = mapped_column(default=10.0, nullable=False)
+    cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=10.0, nullable=False)
 
     # Связи с другими таблицами
     ml_requests: Mapped[List["MLRequest"]] = relationship(

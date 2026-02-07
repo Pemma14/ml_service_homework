@@ -15,11 +15,13 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login", auto_error=False)
 
 async def authenticate(token: str = Depends(oauth2_scheme)):
-    if not token: raise TokenAbsentException
+    if not token:
+        raise TokenAbsentException
     return verify_access_token(token)["sub"]
 
 # Схема OAuth2 для получения токена из cookie
 oauth2_scheme_cookie = OAuth2PasswordBearerWithCookie(tokenUrl="/api/v1/users/login", auto_error=False)
 async def authenticate_cookie(token: str = Depends(oauth2_scheme_cookie)):
-    if not token: raise TokenAbsentException
+    if not token:
+        raise TokenAbsentException
     return verify_access_token(token.removeprefix("Bearer "))["sub"]

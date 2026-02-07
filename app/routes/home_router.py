@@ -1,6 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Response, status
 from typing import Any, Dict
 import logging
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from app.database.database import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +33,20 @@ async def home_page() -> Dict[str, Any]:
     "/health",
     response_model=Dict[str, str],
     summary="Проверка работоспособности",
-    description="Эндпоинт для мониторинга состояния сервиса. Возвращает статус 'ok', если приложение запущено."
+    description="Эндпоинт для мониторинга состояния сервиса. Проверяет доступность базы данных.",
+    responses={
+        200: {"description": "Сервис работает нормально"},
+        503: {"description": "Сервис недоступен (проблемы с БД)"}
+    }
 )
-async def health_check() -> Dict[str, str]:
-    """Проверка работоспособности приложения."""
-    logger.info("Эндпоинт health_check успешно вызван")
-    return {"status": "ok"}
+async def health_check(response: Response, session: Session = Depends(get_session)) -> Dict[str, str]:
+    """Проверка работоспособности приложения и базы данных."""
+    try:
+        # Выполняем простой запрос для проверки БД
+        session.execute(text("SELECT 1"))
+        logger.info("Health check passed: database connection is OK")
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: database error: {e}")
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "error", "database": "disconnected", "error": str(e)}

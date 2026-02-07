@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.database.database import get_session
 from app.models import User, MLModel
+from app.ml import get_ml_engine, MLEngine
 from app.routes.dependencies import get_current_user
 from app.schemas.ml_model_schemas import SMLModel
 from app.schemas.ml_request_schemas import (
@@ -40,12 +41,14 @@ async def predict(
     request: SMLPredictionRequest,
     model_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
+    engine: MLEngine = Depends(get_ml_engine),
     session: Session = Depends(get_session)
 ):
     return ml_request_service.predict(
         session=session,
         items=request.data,
         user=current_user,
+        engine=engine,
         model_id=model_id
     )
 

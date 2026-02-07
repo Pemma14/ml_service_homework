@@ -1,8 +1,9 @@
-from datetime import datetime
+from decimal import Decimal
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import ForeignKey, text, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base_model import Base, int_pk
@@ -27,7 +28,7 @@ class Transaction(Base):
 
     id: Mapped[int_pk]
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
-    amount: Mapped[float] = mapped_column(nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     type: Mapped[TransactionType] = mapped_column(nullable=False)
     status: Mapped[TransactionStatus] = mapped_column(
         default=TransactionStatus.pending,
@@ -37,7 +38,7 @@ class Transaction(Base):
     description: Mapped[Optional[str]]
     ml_request_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ml_request.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
-        default=datetime.now,
+        default=lambda: datetime.now(timezone.utc),
         server_default=text('now()'),
         nullable=False,
         index=True

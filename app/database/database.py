@@ -1,9 +1,9 @@
 import logging
-
 from typing import Generator
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
 from app.models import Base, User
@@ -31,6 +31,11 @@ def get_session() -> Generator[Session, None, None]:
 
 
 # Инциализация БД
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    before_sleep=lambda retry_state: logger.info(f"Retrying DB initialization... (attempt {retry_state.attempt_number})")
+)
 def init_db(drop_all: bool = False):
     try:
         if drop_all:

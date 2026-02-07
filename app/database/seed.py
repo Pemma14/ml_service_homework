@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -7,7 +8,7 @@ from app.models import (
     MLRequest, MLRequestStatus, MLModel
 )
 from app.auth.hash_password import HashPassword
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +25,14 @@ def seed_db(session: Session):
             "code_name": "log_reg",
             "description": "Классическая логистическая регрессия для бинарной классификации",
             "version": "1.0.0",
-            "cost": 10.0
+            "cost": Decimal("10.0")
         },
         {
             "name": "Random Forest Classifier",
             "code_name": "rf_clf",
             "description": "Модель случайного леса для более точных предсказаний",
             "version": "1.1.0",
-            "cost": 25.0
+            "cost": Decimal("25.0")
         }
     ]
 
@@ -55,7 +56,7 @@ def seed_db(session: Session):
             "email": settings.seed.ADMIN_EMAIL,
             "hashed_password": hasher.create_hash(settings.seed.ADMIN_PASSWORD),
             "phone_number": "+70000000000",
-            "balance": 1000.0,
+            "balance": Decimal("1000.0"),
             "role": UserRole.admin,
             "initial_balance_desc": "Начальный баланс администратора"
         },
@@ -65,7 +66,7 @@ def seed_db(session: Session):
             "email": settings.seed.DEMO_EMAIL,
             "hashed_password": hasher.create_hash(settings.seed.DEMO_PASSWORD),
             "phone_number": "+79991234567",
-            "balance": 100.0,
+            "balance": Decimal("100.0"),
             "role": UserRole.user,
             "initial_balance_desc": "Начальный баланс демо-пользователя"
         }
@@ -114,7 +115,7 @@ def seed_db(session: Session):
                         prediction=["выраженных побочных ответов не будет с вероятностью 0.85, выраженные побочные эффекты будут с вероятностью 0.15"],
                         cost=log_reg.cost,
                         status=MLRequestStatus.success,
-                        completed_at=datetime.now()
+                        completed_at=datetime.now(timezone.utc)
                     )
                     session.add(test_request)
                     session.flush()

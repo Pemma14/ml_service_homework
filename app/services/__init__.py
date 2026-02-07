@@ -16,6 +16,7 @@ from app.services.billing_service import (
     create_replenishment_request,
     get_user_balance,
     get_transactions_history,
-    check_balance,
-    process_prediction_payment
+    reserve_funds,
+    create_ml_request_history,
+    refund_funds
 )

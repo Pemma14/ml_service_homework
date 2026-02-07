@@ -1,7 +1,8 @@
+from decimal import Decimal
 from enum import Enum
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import text
+from sqlalchemy import text, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base_model import Base, int_pk, str_uniq
@@ -24,7 +25,7 @@ class User(Base):
     email: Mapped[str_uniq]
     hashed_password: Mapped[str]
     phone_number: Mapped[str_uniq]
-    balance: Mapped[float] = mapped_column(default=0.0, server_default=text('0.0'), nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0, server_default=text('0.0'), nullable=False)
 
     role: Mapped[UserRole] = mapped_column(default=UserRole.user, server_default=text("'user'"), nullable=False)
 
