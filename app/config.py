@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from functools import lru_cache
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,7 @@ class AppSettings(BaseModel):
     PORT: int = 8000
     DEBUG: bool = False
     MODE: str = "DEV"
+    MAX_REPLENISH_AMOUNT: Decimal = Decimal("50000.0")
 
 
 class AuthSettings(BaseModel):

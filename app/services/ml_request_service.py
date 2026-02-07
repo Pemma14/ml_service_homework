@@ -4,17 +4,46 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from app.models import User, MLRequest, MLModel
 from app.schemas import SMLPredictionResponse
-from app.ml import ml_engine
-from app.services.billing_service import check_balance, process_prediction_payment
-from app.utils import MLModelNotFoundException
+from app.ml import MLEngine
+from app.services.billing_service import reserve_funds, create_ml_request_history, refund_funds
+from app.utils import MLModelNotFoundException, MLInferenceException
+
 
 # Настроим логгер
 logger = logging.getLogger(__name__)
 
 
-def predict(session: Session, items: List[Dict[str, Any]], user: User, model_id: Optional[int] = None) -> SMLPredictionResponse:
+def predict(
+    session: Session,
+    items: List[Dict[str, Any]],
+    user: User,
+    engine: MLEngine,
+    model_id: Optional[int] = None
+) -> SMLPredictionResponse:
     """
     Функция-оркестратор: координирует работу других сервисов.
+
+    Выполняет полный цикл обработки ML-запроса:
+    1. Получает модель и определяет стоимость
+    2. Атомарно списывает средства (billing_service)
+    3. Выполняет предсказание (ml_engine)
+    4. Сохраняет историю запроса
+    5. При ошибке возвращает средства
+
+    Args:
+        session: Сессия БД
+        items: Список входных данных для предсказания
+        user: Пользователь
+        engine: ML-движок для выполнения предсказаний
+        model_id: ID модели (опционально, по умолчанию первая активная)
+
+    Returns:
+        Ответ с предсказаниями, ошибками и стоимостью
+
+    Raises:
+        MLModelNotFoundException: Если модель не найдена
+        InsufficientFundsException: Если недостаточно средств
+        MLInferenceException: Если произошла ошибка при инференсе
     """
     logger.info(f"--- Начало обработки запроса для пользователя {user.id} ---")
 
@@ -32,12 +61,14 @@ def predict(session: Session, items: List[Dict[str, Any]], user: User, model_id:
             raise MLModelNotFoundException
         model_id = model.id
 
-    # Проверка баланса (Billing-сервис)
     total_cost = model.cost
-    check_balance(session, user.id, total_cost)
-    logger.info(f"Пользователь {user.id}: Баланс подтвержден ({total_cost}). Переходим к валидации данных.")
 
-    # Подготовка данных для предсказания и сохранения (конвертация Pydantic в dict)
+    # 1. Атомарное списание средств ПЕРЕД инференсом (Billing-сервис)
+    # Это предотвращает бесплатную нагрузку на сервер
+    reserve_funds(session, user, total_cost)
+    logger.info(f"Пользователь {user.id}: Средства {total_cost} успешно зарезервированы.")
+
+    # Подготовка данных для предсказания и сохранения
     prepared_items = []
     for item in items:
         if hasattr(item, "model_dump"):
@@ -45,31 +76,49 @@ def predict(session: Session, items: List[Dict[str, Any]], user: User, model_id:
         else:
             prepared_items.append(item)
 
-    # Выполнение предсказания (ML-сервис)
-    logger.info(f"Пользователь {user.id}: Запуск ML-модели...")
-    predictions = ml_engine.predict(prepared_items)
-    logger.info(f"Пользователь {user.id}: Предсказание успешно получено.")
+    try:
+        # 2. Выполнение предсказания (ML-сервис)
+        logger.info(f"Пользователь {user.id}: Запуск ML-модели...")
+        predictions = engine.predict(prepared_items)
+        logger.info(f"Пользователь {user.id}: Предсказание успешно получено.")
 
-    # Списании средств и сохранение истории (Billing-сервис)
-    process_prediction_payment(
-        session=session,
-        user=user,
-        model_id=model_id,
-        cost=total_cost,
-        input_data=prepared_items,
-        predictions=predictions
-    )
-    logger.info(f"Пользователь {user.id}: Средства списаны.")
+        # 3. Сохранение истории (Billing-сервис)
+        create_ml_request_history(
+            session=session,
+            user=user,
+            model_id=model_id,
+            cost=total_cost,
+            input_data=prepared_items,
+            predictions=predictions
+        )
 
-    return SMLPredictionResponse(
-        predictions=predictions,
-        errors=[],
-        cost=total_cost
-    )
+        return SMLPredictionResponse(
+            predictions=predictions,
+            errors=[],
+            cost=total_cost
+        )
+
+    except MLInferenceException as e:
+        logger.error(f"Пользователь {user.id}: Ошибка при работе ML-модели. Выполняем возврат средств.")
+        refund_funds(session, user, total_cost, reason=f"Ошибка инференса: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Пользователь {user.id}: Непредвиденная ошибка. Выполняем возврат средств.")
+        refund_funds(session, user, total_cost, reason=f"Внутренняя ошибка: {str(e)}")
+        raise
 
 
 def get_all_history(session: Session, user_id: int) -> List[MLRequest]:
-    """Получить историю всех запросов пользователя (сортировка по дате)."""
+    """
+    Получить историю всех запросов пользователя.
+
+    Args:
+        session: Сессия БД
+        user_id: ID пользователя
+
+    Returns:
+        Список ML-запросов, отсортированный по дате создания (новые первыми)
+    """
     query = (
         select(MLRequest)
         .options(joinedload(MLRequest.ml_model))
@@ -81,7 +130,17 @@ def get_all_history(session: Session, user_id: int) -> List[MLRequest]:
 
 
 def get_history_by_id(session: Session, request_id: int, user_id: int) -> Optional[MLRequest]:
-    """Получить конкретный запрос из истории (с данными о модели)."""
+    """
+    Получить конкретный запрос из истории.
+
+    Args:
+        session: Сессия БД
+        request_id: ID запроса
+        user_id: ID пользователя (для проверки прав доступа)
+
+    Returns:
+        Объект MLRequest или None, если не найден
+    """
     query = (
         select(MLRequest)
         .options(joinedload(MLRequest.ml_model))

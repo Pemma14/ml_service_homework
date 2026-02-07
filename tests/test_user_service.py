@@ -1,8 +1,9 @@
+from decimal import Decimal
 import pytest
 from app.services.user_service import create_user, get_user_by_id, get_user_by_email
 from app.schemas import SUserRegister
 from app.models import User, MLRequest, Transaction, TransactionType, TransactionStatus, MLRequestStatus, MLModel
-from datetime import datetime
+from datetime import datetime, timezone
 
 def test_create_user(session):
     user_data = SUserRegister(
@@ -16,7 +17,7 @@ def test_create_user(session):
 
     assert user.id is not None
     assert user.email == "test@example.com"
-    assert user.balance == 0.0
+    assert user.balance == Decimal("0.0")
 
     # Проверка загрузки из БД по ID
     loaded_user = get_user_by_id(session, user.id)
@@ -53,16 +54,17 @@ def test_user_balance_and_history(session):
         name="Test Model",
         code_name="test_model",
         description="Test Description",
-        version="1.0.0"
+        version="1.0.0",
+        cost=Decimal("10.0")
     )
     session.add(model)
     session.flush()
 
     # 3. Обновляем баланс напрямую (имитация пополнения)
-    user.balance = 100.0
+    user.balance = Decimal("100.0")
     session.commit()
     session.refresh(user)
-    assert user.balance == 100.0
+    assert user.balance == Decimal("100.0")
 
     # 4. Добавляем историю запросов
     request = MLRequest(
@@ -70,9 +72,9 @@ def test_user_balance_and_history(session):
         model_id=model.id,
         input_data={"test": "data"},
         prediction={"result": "ok"},
-        cost=10.0,
+        cost=Decimal("10.0"),
         status=MLRequestStatus.success,
-        completed_at=datetime.now()
+        completed_at=datetime.now(timezone.utc)
     )
     session.add(request)
     session.flush()
@@ -80,7 +82,7 @@ def test_user_balance_and_history(session):
     # 5. Добавляем транзакцию
     transaction = Transaction(
         user_id=user.id,
-        amount=-10.0,
+        amount=Decimal("-10.0"),
         type=TransactionType.payment,
         status=TransactionStatus.approved,
         description="Test Payment",
@@ -92,9 +94,9 @@ def test_user_balance_and_history(session):
 
     # 6. Проверяем связи
     assert len(user.ml_requests) == 1
-    assert user.ml_requests[0].cost == 10.0
+    assert user.ml_requests[0].cost == Decimal("10.0")
     assert len(user.transactions) == 1
-    assert user.transactions[0].amount == -10.0
+    assert user.transactions[0].amount == Decimal("-10.0")
     assert user.transactions[0].ml_request_id == user.ml_requests[0].id
 
 def test_update_user(session):

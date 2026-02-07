@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import EmailStr, Field
@@ -23,7 +24,7 @@ class SUser(SBase):
     first_name: str
     last_name: str
     phone_number: str
-    balance: float
+    balance: Decimal
     role: str
 
 

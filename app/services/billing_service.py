@@ -1,5 +1,6 @@
+from decimal import Decimal
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from sqlalchemy import select, update
@@ -25,7 +26,23 @@ def create_replenishment_request(
     user: User,
     transaction_data: STransactionCreate
 ) -> Transaction:
-    """Создать запрос на пополнение баланса."""
+    """
+    Создать запрос на пополнение баланса.
+
+    В DEV режиме транзакция сразу одобряется и баланс обновляется атомарно.
+    В PROD режиме создается pending транзакция для последующего одобрения.
+
+    Args:
+        session: Сессия БД
+        user: Пользователь, пополняющий баланс
+        transaction_data: Данные транзакции (сумма)
+
+    Returns:
+        Созданная транзакция
+
+    Raises:
+        Exception: Если возникла ошибка при работе с БД
+    """
     # В дев режиме (транзакция сразу одобрена)
     if settings.app.MODE == "DEV":
         new_transaction = Transaction(
@@ -68,41 +85,57 @@ def create_replenishment_request(
         raise
 
 
-def get_user_balance(session: Session, user_id: int) -> float:
-    """Получить актуальный баланс пользователя"""
+def get_user_balance(session: Session, user_id: int) -> Decimal:
+    """
+    Получить актуальный баланс пользователя.
+
+    Args:
+        session: Сессия БД
+        user_id: ID пользователя
+
+    Returns:
+        Баланс пользователя (Decimal)
+    """
     query = select(User).where(User.id == user_id)
     result = session.execute(query)
     user = result.scalar_one_or_none()
-    return user.balance if user else 0.0
+    return user.balance if user else Decimal("0.0")
 
 
 def get_transactions_history(session: Session, user_id: int) -> List[Transaction]:
-    """Получить историю всех транзакций пользователя."""
+    """
+    Получить историю всех транзакций пользователя.
+
+    Args:
+        session: Сессия БД
+        user_id: ID пользователя
+
+    Returns:
+        Список всех транзакций пользователя
+    """
     query = select(Transaction).where(Transaction.user_id == user_id)
     result = session.execute(query)
     return result.scalars().all()
 
 
-def check_balance(session: Session, user_id: int, cost: float):
-    """Проверить, достаточно ли средств у пользователя."""
-    balance = get_user_balance(session, user_id)
-    if balance < cost:
-        logger.error(f"Пользователь {user_id}: Недостаточно средств ({balance} < {cost})")
-        raise InsufficientFundsException
-
-
-def process_prediction_payment(
+def reserve_funds(
     session: Session,
     user: User,
-    model_id: int,
-    cost: float,
-    input_data: list,
-    predictions: list
-) -> MLRequest:
+    cost: Decimal,
+) -> None:
     """
-    Атомарная операция: списание средств + запись в историю ML + запись в транзакции (предотвращения race condition).
+    Атомарно списывает средства с баланса пользователя.
+
+    Использует атомарный UPDATE с проверкой баланса в WHERE для предотвращения race conditions.
+
+    Args:
+        session: Сессия БД
+        user: Пользователь
+        cost: Сумма к списанию
+
+    Raises:
+        InsufficientFundsException: Если средств недостаточно
     """
-    # 1. Списываем баланс пользователя атомарно в БД
     result = session.execute(
         update(User)
         .where(User.id == user.id, User.balance >= cost)
@@ -110,26 +143,62 @@ def process_prediction_payment(
     )
 
     if result.rowcount == 0:
-        logger.error(f"Пользователь {user.id}: Ошибка списания. Недостаточно средств или пользователь не найден.")
+        logger.error(f"Пользователь {user.id}: Недостаточно средств для списания {cost}")
         raise InsufficientFundsException
 
-    # 2. Создаем запись в истории ML-запросов
+    # Фиксируем списание в БД сразу, чтобы другие процессы видели актуальный баланс
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Ошибка при коммите списания средств: {e}")
+        raise
+
+
+def create_ml_request_history(
+    session: Session,
+    user: User,
+    model_id: int,
+    cost: Decimal,
+    input_data: list,
+    predictions: list = None,
+    errors: list = None,
+    status: MLRequestStatus = MLRequestStatus.success
+) -> MLRequest:
+    """
+    Создает запись в истории ML-запросов и соответствующую транзакцию оплаты.
+
+    Args:
+        session: Сессия БД
+        user: Пользователь
+        model_id: ID модели
+        cost: Стоимость запроса
+        input_data: Входные данные
+        predictions: Результаты предсказания (опционально)
+        errors: Ошибки (опционально)
+        status: Статус запроса (по умолчанию success)
+
+    Returns:
+        Созданный объект MLRequest
+
+    Raises:
+        Exception: Если возникла ошибка при работе с БД
+    """
+    # 1. Создаем запись в истории ML-запросов
     new_request = MLRequest(
         user_id=user.id,
         model_id=model_id,
         cost=cost,
         input_data=input_data,
-        prediction=predictions,
-        errors=[],
-        status=MLRequestStatus.success,
-        completed_at=datetime.now()
+        prediction=predictions or [],
+        errors=errors or [],
+        status=status,
+        completed_at=datetime.now(timezone.utc)
     )
     session.add(new_request)
-
-    # Синхронизируем, чтобы получить ID нового запроса
     session.flush()
 
-    # 3. Создаем запись в журнале финансовых транзакций (аудит)
+    # 2. Создаем запись в журнале финансовых транзакций (аудит)
     audit_transaction = Transaction(
         user_id=user.id,
         amount=-cost,
@@ -143,8 +212,52 @@ def process_prediction_payment(
     try:
         session.commit()
         session.refresh(new_request)
-        logger.info(f"Списано {cost} у пользователя {user.id}. Запрос №{new_request.id} оплачен.")
+        logger.info(f"Запрос №{new_request.id} сохранен в истории для пользователя {user.id}.")
         return new_request
-    except Exception:
+    except Exception as e:
         session.rollback()
+        logger.error(f"Ошибка при сохранении истории запроса: {e}")
+        raise
+
+
+def refund_funds(
+    session: Session,
+    user: User,
+    cost: Decimal,
+    reason: str = "Возврат средств"
+) -> None:
+    """
+    Возвращает средства пользователю в случае ошибки.
+
+    Args:
+        session: Сессия БД
+        user: Пользователь
+        cost: Сумма к возврату
+        reason: Причина возврата (для аудита)
+
+    Raises:
+        Exception: Если возникла ошибка при работе с БД
+    """
+    session.execute(
+        update(User)
+        .where(User.id == user.id)
+        .values(balance=User.balance + cost)
+    )
+
+    # Создаем транзакцию возврата для аудита
+    refund_transaction = Transaction(
+        user_id=user.id,
+        amount=cost,
+        type=TransactionType.replenish,
+        status=TransactionStatus.approved,
+        description=reason
+    )
+    session.add(refund_transaction)
+
+    try:
+        session.commit()
+        logger.info(f"Средства {cost} возвращены пользователю {user.id}. Причина: {reason}")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Ошибка при выполнении возврата средств: {e}")
         raise

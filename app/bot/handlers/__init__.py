@@ -90,6 +90,27 @@ async def process_cyp3(message: types.Message, state: FSMContext):
     await message.answer("Шаг 7/7: Генетический маркер CYP2D6 1/3 (0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.cyp2d6_1_3)
 
+async def get_bot_token():
+    """Получает JWT-токен для бота, используя демо-данные."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.api_url}/api/v1/users/login",
+                json={
+                    "email": settings.seed.DEMO_EMAIL,
+                    "password": settings.seed.DEMO_PASSWORD
+                },
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                return response.json().get("access_token")
+            else:
+                logger.error(f"Ошибка авторизации бота: {response.status_code}")
+                return None
+    except Exception as e:
+        logger.error(f"Исключение при получении токена: {e}")
+        return None
+
 @router.message(PredictForm.cyp2d6_1_3)
 async def process_final(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
@@ -101,7 +122,12 @@ async def process_final(message: types.Message, state: FSMContext):
     await message.answer("Обработка данных, пожалуйста, подождите...", reply_markup=types.ReplyKeyboardRemove())
 
     try:
-        # Подготавливаем данные для API
+        # 1. Получаем токен
+        token = await get_bot_token()
+        if not token:
+            return await message.answer("Ошибка авторизации в сервисе. Попробуйте позже.")
+
+        # 2. Подготавливаем данные для API
         payload = {
             "data": [{
                 "Возраст": data['age'],
@@ -114,11 +140,13 @@ async def process_final(message: types.Message, state: FSMContext):
             }]
         }
 
+        # 3. Выполняем запрос с токеном
+        headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{settings.api_url}/api/v1/requests/predict",
-                params={"user_id": 2},
                 json=payload,
+                headers=headers,
                 timeout=10.0
             )
 

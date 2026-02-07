@@ -14,19 +14,37 @@ class MLEngine:
     """
 
     def __init__(self):
-        try:
-            model_path = os.path.join(os.path.dirname(__file__), "model.pkl")
-            if os.path.exists(model_path):
-                self.model = joblib.load(model_path)
-                logger.info(f"ML модель успешно загружена из {model_path}")
-            else:
-                self.model = None
-                logger.warning(f"Файл модели не найден по пути {model_path}, включен режим заглушки")
-        except Exception as e:
-            logger.critical(f"Критическая ошибка при инициализации ML-модели: {e}")
-            raise MLModelLoadException()
+        self._model = None
+        self.model_path = os.path.join(os.path.dirname(__file__), "model.pkl")
+
+    @property
+    def model(self):
+        """Ленивая загрузка модели."""
+        if self._model is None:
+            try:
+                if os.path.exists(self.model_path):
+                    self._model = joblib.load(self.model_path)
+                    logger.info(f"ML модель успешно загружена из {self.model_path}")
+                else:
+                    logger.warning(f"Файл модели не найден по пути {self.model_path}, включен режим заглушки")
+            except Exception as e:
+                logger.critical(f"Критическая ошибка при загрузке ML-модели: {e}")
+                raise MLModelLoadException()
+        return self._model
 
     def predict(self, items: List[Any]) -> List[str]:
+        """
+        Выполнить предсказание на основе входных данных.
+
+        Args:
+            items: Список входных данных (Pydantic модели или словари)
+
+        Returns:
+            Список строковых результатов предсказаний
+
+        Raises:
+            MLInferenceException: Если произошла ошибка во время инференса
+        """
         try:
             # Конвертируем объекты Pydantic в словари, если нужно
             data_to_predict = []
@@ -42,10 +60,21 @@ class MLEngine:
             raise MLInferenceException()
 
     def _run_inference(self, items: List[Dict[str, Any]]) -> List[str]:
+        """
+        Внутренний метод для выполнения инференса.
+
+        Args:
+            items: Список словарей с данными для предсказания
+
+        Returns:
+            Список строковых результатов
+
+        Raises:
+            MLInferenceException: Если произошла ошибка
+        """
         try:
             if self.model is None:
                 return [
-                    "выраженных побочных ответов не будет с вероятностью 0.85, "
                     "выраженные побочные эффекты будут с вероятностью 0.15"
                     for _ in items
                 ]
@@ -70,8 +99,6 @@ class MLEngine:
             try:
                 probabilities = self.model.predict_proba(df)
                 for prob in probabilities:
-                    # В scikit-learn для бинарной классификации prob[0] - вероятность класса 0, prob[1] - класса 1
-                    # Мы выяснили, что классы модели [0, 1]
                     p0 = round(float(prob[0]), 2)
                     p1 = round(float(prob[1]), 2)
                     results.append(
@@ -95,3 +122,8 @@ class MLEngine:
 
 # Создаем единственный экземпляр (Singleton) движка
 ml_engine = MLEngine()
+
+
+def get_ml_engine() -> MLEngine:
+    """Зависимость для получения экземпляра ML-движка."""
+    return ml_engine

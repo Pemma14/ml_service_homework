@@ -51,19 +51,19 @@ class MLInvalidDataException(AppException):
 # Исключения для аутентификации
 class TokenAbsentException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Токен отсутствует"
+    detail = "Токен аутентификации отсутствует. Пожалуйста, войдите в систему."
 
 class IncorrectTokenFormatException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Неверный формат токена"
+    detail = "Неверный формат токена. Пожалуйста, войдите в систему снова."
 
 class TokenExpiredException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Токен истек"
+    detail = "Токен истек. Пожалуйста, войдите в систему снова."
 
 class IncorrectEmailOrPasswordException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Неверная почта или пароль"
+    detail = "Неверный email или пароль. Проверьте введенные данные и попробуйте снова."
 
 # Инфраструктурные ошибки
 class InternalServerErrorException(AppException):

@@ -1,8 +1,9 @@
-from datetime import datetime
+from decimal import Decimal
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, text
+from sqlalchemy import JSON, ForeignKey, text, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base_model import Base, int_pk
@@ -27,9 +28,9 @@ class MLRequest(Base):
     prediction: Mapped[Any] = mapped_column(JSON, nullable=True)
     errors: Mapped[Any] = mapped_column(JSON, nullable=True)
     status: Mapped[MLRequestStatus] = mapped_column(nullable=False)
-    cost: Mapped[float] = mapped_column(nullable=False)
+    cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        default=datetime.now,
+        default=lambda: datetime.now(timezone.utc),
         server_default=text('now()'),
         nullable=False,
         index=True
