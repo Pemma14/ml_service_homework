@@ -9,7 +9,7 @@ from ml_worker.config import settings
 from ml_worker.services.mltask_consumer import BaseWorker
 from ml_worker.schemas.tasks import MLTask
 from ml_worker.schemas.results import MLResult
-from ml_worker.services.engine import ml_engine
+from ml_worker.engine import ml_engine
 
 logger = logging.getLogger("MLWorker")
 
@@ -41,6 +41,9 @@ class MLWorker(BaseWorker):
                 logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id}...")
                 # Оборачиваем в список, так как MLEngine.predict ожидает список
                 prediction = ml_engine.predict([task.features])
+                # Приводим к списку результатов (даже если один элемент), чтобы API получал консистентный List[Any]
+                if prediction is not None and not isinstance(prediction, list):
+                    prediction = [prediction]
             except Exception as e:
                 logger.error(f"[{self.worker_id}] Ошибка инференса для задачи {task.task_id}: {e}")
                 status = "fail"
@@ -48,7 +51,6 @@ class MLWorker(BaseWorker):
 
             # 2. Отправка результата в API (может выбросить Exception после ретраев)
             # Если это случится, message.process() nack-нет сообщение и оно вернется в очередь
-            if prediction and isinstance(prediction, list) and len(prediction) == 1: prediction = prediction[0]
             if settings.worker.SAVE_METHOD == "db":
                 await self.save_result_to_db(task.task_id, prediction, status, error_msg)
             else:

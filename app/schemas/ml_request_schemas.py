@@ -49,7 +49,7 @@ class SMLRequestHistory(SBase):
     user_id: int
     model_id: int
     input_data: List[Dict[str, Any]]
-    prediction: Optional[List[Any]]
+    prediction: Optional[Any] = None
     errors: Optional[List[Dict[str, Any]]]
     status: MLRequestStatus
     cost: Decimal

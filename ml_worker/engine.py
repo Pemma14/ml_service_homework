@@ -40,18 +40,6 @@ class MLEngine:
         return self._model
 
     def predict(self, items: List[Any]) -> List[str]:
-        """
-        Выполнить предсказание на основе входных данных.
-
-        Args:
-            items: Список входных данных (Pydantic модели или словари)
-
-        Returns:
-            Список строковых результатов предсказаний
-
-        Raises:
-            MLInferenceException: Если произошла ошибка во время инференса
-        """
         try:
             # Конвертируем объекты Pydantic в словари, если нужно
             data_to_predict = []
@@ -67,18 +55,6 @@ class MLEngine:
             raise MLInferenceException()
 
     def _run_inference(self, items: List[Dict[str, Any]]) -> List[str]:
-        """
-        Внутренний метод для выполнения инференса.
-
-        Args:
-            items: Список словарей с данными для предсказания
-
-        Returns:
-            Список строковых результатов
-
-        Raises:
-            MLInferenceException: Если произошла ошибка
-        """
         try:
             if self.model is None:
                 return [

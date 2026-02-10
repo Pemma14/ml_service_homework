@@ -1,51 +1,25 @@
 services:
   app:
     build:
-      #чтобы не было проблем с путями в докере
       context: .
       dockerfile: app/Dockerfile
     image: ml-service-api:0.1.0
     container_name: ml-service-api
     restart: unless-stopped
-    environment: #для проверки домашки (без .env файла)
-      - DB__HOST=database
-      - DB__USER=${DB__USER:-pema}
-      - DB__PASSWORD=${DB__PASSWORD:-password}
-      - DB__NAME=${DB__NAME:-ml_service}
-      - DB__ECHO=${DB__ECHO:-True}
-      - DB__POOL_SIZE=${DB__POOL_SIZE:-5}
-      - DB__MAX_OVERFLOW=${DB__MAX_OVERFLOW:-10}
-      - DB__POOL_RECYCLE=${DB__POOL_RECYCLE:-3600}
-      - APP__DEBUG=${APP__DEBUG:-True}
-      - APP__MODE=${APP__MODE:-DEV}
-      - APP__MAX_REPLENISH_AMOUNT=${APP__MAX_REPLENISH_AMOUNT:-50000.0}
-      - AUTH__SECRET_KEY=${AUTH__SECRET_KEY:-your_secret_key_here_make_it_long_and_secure}
-      - AUTH__ALGORITHM=${AUTH__ALGORITHM:-HS256}
-      - AUTH__ACCESS_TOKEN_EXPIRE_MINUTES=${AUTH__ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-      - AUTH__COOKIE_NAME=${AUTH__COOKIE_NAME:-ml_service_session}
-      - AUTH__SECURE_COOKIE=${AUTH__SECURE_COOKIE:-True}
-      - LOGGING__LEVEL=${LOGGING__LEVEL:-INFO}
-      - LOGGING__FORMAT=${LOGGING__FORMAT:-JSON}
-      - SEED__ADMIN_EMAIL=${SEED__ADMIN_EMAIL:-admin@example.org}
-      - SEED__ADMIN_PASSWORD=${SEED__ADMIN_PASSWORD:-password}
-      - SEED__DEMO_EMAIL=${SEED__DEMO_EMAIL:-demo@example.org}
-      - SEED__DEMO_PASSWORD=${SEED__DEMO_PASSWORD:-password}
-      - MQ__HOST=rabbitmq
-      - MQ__PORT=${MQ__PORT:-5672}
-      - MQ__VIRTUAL_HOST=${MQ__VIRTUAL_HOST:-/}
-      - MQ__USER=${MQ__USER:-guest}
-      - MQ__PASSWORD=${MQ__PASSWORD:-guest}
-      - MQ__QUEUE_NAME=${MQ__QUEUE_NAME:-ml_task_queue}
+    env_file:
+      - .env
     volumes:
       - ./app:/src/app
     depends_on:
-      - database
+      database:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       ml-service-network:
         aliases:
           - app
     healthcheck:
-      #чтобы использовать питоновский urllib без установки доп зависимостей
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
       interval: 10s
       timeout: 5s
@@ -57,12 +31,15 @@ services:
     image: postgres:16-alpine
     container_name: ml-service-db
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data/
-    environment:
-      - POSTGRES_USER=${DB__USER:-pema}
-      - POSTGRES_PASSWORD=${DB__PASSWORD:-password}
-      - POSTGRES_DB=${DB__NAME:-ml_service}
+    env_file:
+      - .env
     networks:
       - ml-service-network
 
@@ -88,10 +65,13 @@ services:
     image: rabbitmq:3.13.1-management
     hostname: rabbitmq
     restart: unless-stopped
-    environment:
-      - RABBITMQ_DEFAULT_USER=${MQ__USER:-guest}
-      - RABBITMQ_DEFAULT_PASS=${MQ__PASSWORD:-guest}
-      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=${MQ__ERL_ARGS:--rabbit disk_free_limit 2147483648}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
     volumes:
       - rabbitmq:/var/lib/rabbitmq
     ports:
@@ -109,24 +89,13 @@ services:
     container_name: ml-service-ml_worker-1
     restart: unless-stopped
     command: ["python", "-m", "ml_worker.main"]
+    env_file:
+      - .env
     environment:
       - WORKER_ID=ml_worker-1
-      - MQ__HOST=rabbitmq
-      - MQ__PORT=${MQ__PORT:-5672}
-      - MQ__VIRTUAL_HOST=${MQ__VIRTUAL_HOST:-/}
-      - MQ__USER=${MQ__USER:-guest}
-      - MQ__PASSWORD=${MQ__PASSWORD:-guest}
-      - MQ__QUEUE_NAME=${MQ__QUEUE_NAME:-ml_task_queue}
-      - BOT__API_URL=http://app:8000
-      - WORKER__PREFETCH_COUNT=${WORKER__PREFETCH_COUNT:-1}
-      - WORKER__MAX_RETRIES=${WORKER__MAX_RETRIES:-3}
-      - WORKER__RETRY_DELAY=${WORKER__RETRY_DELAY:-1.0}
-      - DB__HOST=database
-      - DB__USER=${DB__USER:-pema}
-      - DB__PASSWORD=${DB__PASSWORD:-password}
-      - DB__NAME=${DB__NAME:-ml_service}
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ml-service-network
 
@@ -135,25 +104,15 @@ services:
     container_name: ml-service-ml_worker-2
     restart: unless-stopped
     command: ["python", "-m", "ml_worker.main"]
+    env_file:
+      - .env
     environment:
       - WORKER_ID=ml_worker-2
-      - MQ__HOST=rabbitmq
-      - MQ__PORT=${MQ__PORT:-5672}
-      - MQ__VIRTUAL_HOST=${MQ__VIRTUAL_HOST:-/}
-      - MQ__USER=${MQ__USER:-guest}
-      - MQ__PASSWORD=${MQ__PASSWORD:-guest}
-      - MQ__QUEUE_NAME=${MQ__QUEUE_NAME:-ml_task_queue}
-      - BOT__API_URL=http://app:8000
-      - WORKER__PREFETCH_COUNT=${WORKER__PREFETCH_COUNT:-1}
-      - WORKER__MAX_RETRIES=${WORKER__MAX_RETRIES:-3}
-      - WORKER__RETRY_DELAY=${WORKER__RETRY_DELAY:-1.0}
-      - DB__HOST=database
-      - DB__USER=${DB__USER:-pema}
-      - DB__PASSWORD=${DB__PASSWORD:-password}
-      - DB__NAME=${DB__NAME:-ml_service}
     depends_on:
-      - rabbitmq
-      - worker-1
+      rabbitmq:
+        condition: service_healthy
+      worker-1:
+        condition: service_started
     networks:
       - ml-service-network
 
@@ -162,19 +121,16 @@ services:
     container_name: ml-service-rpc_worker-1
     restart: unless-stopped
     command: ["python", "-m", "ml_worker.main"]
+    env_file:
+      - .env
     environment:
       - WORKER_MODE=rpc
       - WORKER_ID=rpc_worker-1
-      - MQ__HOST=rabbitmq
-      - MQ__PORT=${MQ__PORT:-5672}
-      - MQ__VIRTUAL_HOST=${MQ__VIRTUAL_HOST:-/}
-      - MQ__USER=${MQ__USER:-guest}
-      - MQ__PASSWORD=${MQ__PASSWORD:-guest}
-      - MQ__RPC_QUEUE_NAME=${MQ__RPC_QUEUE_NAME:-rpc_queue}
-      - WORKER__PREFETCH_COUNT=${WORKER__PREFETCH_COUNT:-1}
     depends_on:
-      - rabbitmq
-      - worker-1
+      rabbitmq:
+        condition: service_healthy
+      worker-1:
+        condition: service_started
     networks:
       - ml-service-network
 
@@ -186,9 +142,8 @@ services:
     container_name: ml-service-bot
     restart: unless-stopped
     command: ["python", "-m", "bot.main"]
-    environment:
-      - BOT__TOKEN=${BOT_TOKEN:-secret_token}
-      - BOT__API_URL=http://app:8000
+    env_file:
+      - .env
     depends_on:
       app:
         condition: service_healthy

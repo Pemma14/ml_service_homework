@@ -2,7 +2,7 @@ import json
 import logging
 import aio_pika
 from ml_worker.services.mltask_consumer import BaseWorker
-from ml_worker.services.engine import ml_engine
+from ml_worker.engine import ml_engine
 from ml_worker.config import settings
 
 logger = logging.getLogger("RPCWorker")

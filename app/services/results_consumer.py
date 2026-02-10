@@ -29,31 +29,34 @@ class ResultsConsumer:
         self._stop_event = asyncio.Event()
 
     async def start(self) -> None:
-        try:
-            logger.info("[ResultsConsumer] Подключение к RabbitMQ...")
-            self.connection = await aio_pika.connect_robust(self.amqp_url)
-            self.channel = await self.connection.channel()
-            await self.channel.set_qos(prefetch_count=10)
+        retry_interval = 5
+        while not self._stop_event.is_set():
+            try:
+                logger.info("[ResultsConsumer] Подключение к RabbitMQ...")
+                self.connection = await aio_pika.connect_robust(self.amqp_url)
+                self.channel = await self.connection.channel()
+                await self.channel.set_qos(prefetch_count=10)
 
-            # Объявляем обменник и очередь результатов
-            exchange = await self.channel.declare_exchange(
-                settings.mq.RESULTS_EXCHANGE_NAME,
-                type=aio_pika.ExchangeType.DIRECT,
-                durable=True,
-            )
-            self.queue = await self.channel.declare_queue(
-                settings.mq.RESULTS_QUEUE_NAME,
-                durable=True,
-            )
-            await self.queue.bind(exchange, routing_key=settings.mq.RESULTS_ROUTING_KEY)
+                # Объявляем обменник и очередь результатов
+                exchange = await self.channel.declare_exchange(
+                    settings.mq.RESULTS_EXCHANGE_NAME,
+                    type=aio_pika.ExchangeType.DIRECT,
+                    durable=True,
+                )
+                self.queue = await self.channel.declare_queue(
+                    settings.mq.RESULTS_QUEUE_NAME,
+                    durable=True,
+                )
+                await self.queue.bind(exchange, routing_key=settings.mq.RESULTS_ROUTING_KEY)
 
-            await self.queue.consume(self._on_message)
-            logger.info(
-                f"[ResultsConsumer] Запущен. Очередь: {settings.mq.RESULTS_QUEUE_NAME}, обменник: {settings.mq.RESULTS_EXCHANGE_NAME}"
-            )
-        except Exception as e:
-            logger.error(f"[ResultsConsumer] Ошибка при старте: {e}")
-            raise MQServiceException()
+                await self.queue.consume(self._on_message)
+                logger.info(
+                    f"[ResultsConsumer] Запущен. Очередь: {settings.mq.RESULTS_QUEUE_NAME}, обменник: {settings.mq.RESULTS_EXCHANGE_NAME}"
+                )
+                break
+            except Exception as e:
+                logger.error(f"[ResultsConsumer] Ошибка при старте: {e}. Повтор через {retry_interval} сек...")
+                await asyncio.sleep(retry_interval)
 
     async def _on_message(self, message: aio_pika.IncomingMessage) -> None:
         async with message.process():
