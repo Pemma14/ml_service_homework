@@ -1,0 +1,122 @@
+import json
+import logging
+import asyncio
+from typing import Any, Optional
+
+import aio_pika
+
+from ml_worker.config import settings
+from ml_worker.services.mltask_consumer import BaseWorker
+from ml_worker.schemas.tasks import MLTask
+from ml_worker.schemas.results import MLResult
+from ml_worker.services.engine import ml_engine
+
+logger = logging.getLogger("MLWorker")
+
+class MLWorker(BaseWorker):
+    """
+    Воркер для выполнения ML предсказаний.
+    """
+    def __init__(self, worker_id: str):
+        super().__init__(
+            worker_id=worker_id,
+            queue_name=settings.mq.QUEUE_NAME,
+            amqp_url=settings.mq.amqp_url
+        )
+
+    async def process_message(self, message: aio_pika.IncomingMessage) -> None:
+        """Обработка входящего сообщения с задачей."""
+        async with message.process():
+            body = message.body.decode()
+            data = json.loads(body)
+            task = MLTask(**data)
+            logger.info(f"[{self.worker_id}] Получена задача: {task.task_id}")
+
+            prediction = None
+            status = "success"
+            error_msg = None
+
+            # 1. Выполнение инференса
+            try:
+                logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id}...")
+                # Оборачиваем в список, так как MLEngine.predict ожидает список
+                prediction = ml_engine.predict([task.features])
+            except Exception as e:
+                logger.error(f"[{self.worker_id}] Ошибка инференса для задачи {task.task_id}: {e}")
+                status = "fail"
+                error_msg = str(e)
+
+            # 2. Отправка результата в API (может выбросить Exception после ретраев)
+            # Если это случится, message.process() nack-нет сообщение и оно вернется в очередь
+            if prediction and isinstance(prediction, list) and len(prediction) == 1: prediction = prediction[0]
+            if settings.worker.SAVE_METHOD == "db":
+                await self.save_result_to_db(task.task_id, prediction, status, error_msg)
+            else:
+                await self.publish_result_to_mq(task.task_id, prediction, status, error_msg)
+
+    async def publish_result_to_mq(
+        self,
+        task_id: str,
+        prediction: Optional[Any],
+        status: str,
+        error: Optional[str]
+    ) -> None:
+        """Публикация результата обработки в очередь результатов RabbitMQ с ретраями."""
+        result = MLResult(
+            task_id=task_id,
+            prediction=prediction,
+            worker_id=self.worker_id,
+            status=status,
+            error=error
+        )
+
+        payload = json.dumps(result.model_dump()).encode()
+
+        for attempt in range(1, settings.worker.MAX_RETRIES + 1):
+            try:
+                logger.info(f"[{self.worker_id}] Публикация результата для {task_id} в MQ (попытка {attempt})...")
+                # Используем существующее соединение
+                async with self.connection.channel() as channel:
+                    await channel.set_qos(prefetch_count=settings.worker.PREFETCH_COUNT)
+                    exchange = await channel.declare_exchange(
+                        settings.mq.RESULTS_EXCHANGE_NAME,
+                        type=aio_pika.ExchangeType.DIRECT,
+                        durable=True,
+                    )
+                    # Убедимся, что очередь существует и привязана
+                    queue = await channel.declare_queue(
+                        settings.mq.RESULTS_QUEUE_NAME,
+                        durable=True,
+                    )
+                    await queue.bind(exchange, routing_key=settings.mq.RESULTS_ROUTING_KEY)
+
+                    message = aio_pika.Message(
+                        body=payload,
+                        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                        content_type="application/json",
+                    )
+                    await exchange.publish(message, routing_key=settings.mq.RESULTS_ROUTING_KEY, mandatory=True)
+
+                logger.info(f"[{self.worker_id}] Результат для {task_id} опубликован в MQ.")
+                return
+            except Exception as e:
+                logger.error(f"[{self.worker_id}] Ошибка публикации результата в MQ (попытка {attempt}): {e}")
+                if attempt < settings.worker.MAX_RETRIES:
+                    await asyncio.sleep(settings.worker.RETRY_DELAY)
+
+        raise Exception(f"Failed to publish result for task {task_id} after {settings.worker.MAX_RETRIES} attempts")
+
+    async def save_result_to_db(self, task_id: str, prediction: Optional[Any], status: str, error: Optional[str]) -> None:
+        import json
+        from sqlalchemy import create_engine, text
+        from datetime import datetime, timezone
+        try:
+            engine = create_engine(settings.db.url)
+            with engine.connect() as conn:
+                query = text("UPDATE ml_request SET prediction = :p, status = :s, errors = :e, completed_at = :c WHERE id = :id")
+                e_val = json.dumps([{'error': error}]) if error else None
+                conn.execute(query, {'p': json.dumps(prediction), 's': status, 'e': e_val, 'c': datetime.now(timezone.utc), 'id': int(task_id)})
+                conn.commit()
+        except Exception as e:
+            logger.error(f'Error saving to DB: {e}')
+            raise
