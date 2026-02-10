@@ -1,12 +1,10 @@
 import logging
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
 
-from app.database.database import get_session
 from app.models import User
-from app.routes.dependencies import get_current_user
+from app.routes.dependencies import get_current_user, get_user_service
 from app.schemas.user_schemas import SUserRegister, SUserAuth, SUser
-from app.services import user_service
+from app.services import UserService
 from app.auth.jwt_handler import create_access_token
 
 logger = logging.getLogger(__name__)
@@ -22,9 +20,9 @@ router = APIRouter()
 )
 async def register_user(
     user_data: SUserRegister,
-    session: Session = Depends(get_session)
+    user_service: UserService = Depends(get_user_service)
 ):
-    user_service.create_user(session, user_data)
+    user_service.create_user(user_data)
     logger.info(f"User registered successfully: {user_data.email}")
     return {"message": "Вы успешно зарегистрированы!"}
 
@@ -36,9 +34,9 @@ async def register_user(
 )
 async def auth_user(
     user_data: SUserAuth,
-    session: Session = Depends(get_session)
+    user_service: UserService = Depends(get_user_service)
 ):
-    user = user_service.authenticate_user(session, user_data.email, user_data.password)
+    user = user_service.authenticate_user(user_data.email, user_data.password)
     access_token = create_access_token(user=str(user.id))
     logger.info(f"User logged in: {user_data.email}")
     return {

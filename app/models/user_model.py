@@ -25,7 +25,7 @@ class User(Base):
     email: Mapped[str_uniq]
     hashed_password: Mapped[str]
     phone_number: Mapped[str_uniq]
-    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0.0, server_default=text('0.0'), nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.0"), server_default=text('0.0'), nullable=False)
 
     role: Mapped[UserRole] = mapped_column(default=UserRole.user, server_default=text("'user'"), nullable=False)
 

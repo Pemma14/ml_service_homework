@@ -10,7 +10,7 @@ from app.utils.exceptions import AppException
 logger = logging.getLogger(__name__)
 
 
-async def app_exception_handler(request: Request, exc: AppException):
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Обработчик кастомных исключений приложения."""
     logger.warning(f"Ошибка приложения: {exc.detail}")
     return JSONResponse(
@@ -19,7 +19,7 @@ async def app_exception_handler(request: Request, exc: AppException):
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Обработчик ошибок валидации (Pydantic)."""
     errors = exc.errors()
     simplified_errors = [
@@ -33,7 +33,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Обработчик ошибок базы данных."""
     logger.error(f"Database error: {exc}")
     return JSONResponse(
@@ -42,7 +42,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     )
 
 
-async def general_exception_handler(request: Request, exc: Exception):
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Обработчик всех остальных непредвиденных ошибок."""
     logger.critical(f"НЕПРЕДВИДЕННАЯ ОШИБКА: {exc}", exc_info=True)
     return JSONResponse(
@@ -51,7 +51,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-def setup_exception_handlers(app: FastAPI):
+def setup_exception_handlers(app: FastAPI) -> None:
     """Регистрация всех обработчиков исключений."""
     app.add_exception_handler(AppException, app_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

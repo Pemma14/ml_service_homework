@@ -39,9 +39,9 @@ class SMLPredictionRequest(SBase):
 
 
 class SMLPredictionResponse(SBase):
-    predictions: List[Any] = Field(..., description="Результаты предсказаний для валидных данных")
-    errors: List[Dict[str, Any]] = Field(..., description="Ошибочные данные с описанием ошибок")
-    cost: Decimal = Field(..., description="Стоимость выполнения запроса")
+    request_id: int = Field(..., description="ID созданного запроса")
+    status: MLRequestStatus = Field(..., description="Текущий статус запроса")
+    message: str = Field(..., description="Информационное сообщение")
 
 
 class SMLRequestHistory(SBase):

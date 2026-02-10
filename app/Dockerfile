@@ -9,4 +9,6 @@ COPY app/pyproject.toml /src/
 RUN /uv/bin/uv pip install --system --no-cache -r /src/pyproject.toml
 EXPOSE 8000
 COPY app /src/app
+COPY bot /src/bot
+COPY ml_worker /src/ml_worker
 CMD ["python", "-m", "app.main"]

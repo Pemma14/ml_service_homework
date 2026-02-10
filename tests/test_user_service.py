@@ -1,11 +1,12 @@
 from decimal import Decimal
 import pytest
-from app.services.user_service import create_user, get_user_by_id, get_user_by_email
+from app.services.user_service import UserService
 from app.schemas import SUserRegister
 from app.models import User, MLRequest, Transaction, TransactionType, TransactionStatus, MLRequestStatus, MLModel
 from datetime import datetime, timezone
 
 def test_create_user(session):
+    service = UserService(session)
     user_data = SUserRegister(
         email="test@example.com",
         password="password123",
@@ -13,18 +14,19 @@ def test_create_user(session):
         last_name="User",
         phone_number="+79991112233"
     )
-    user = create_user(session, user_data)
+    user = service.create_user(user_data)
 
     assert user.id is not None
     assert user.email == "test@example.com"
     assert user.balance == Decimal("0.0")
 
     # Проверка загрузки из БД по ID
-    loaded_user = get_user_by_id(session, user.id)
+    loaded_user = service.get_user_by_id(user.id)
     assert loaded_user is not None
     assert loaded_user.email == "test@example.com"
 
 def test_get_user_by_email(session):
+    service = UserService(session)
     user_data = SUserRegister(
         email="email@example.com",
         password="password123",
@@ -32,9 +34,9 @@ def test_get_user_by_email(session):
         last_name="User",
         phone_number="+79994445566"
     )
-    create_user(session, user_data)
+    service.create_user(user_data)
 
-    user = get_user_by_email(session, "email@example.com")
+    user = service.get_user_by_email("email@example.com")
     assert user is not None
     assert user.first_name == "Email"
 
@@ -47,7 +49,8 @@ def test_user_balance_and_history(session):
         last_name="User",
         phone_number="+79997778899"
     )
-    user = create_user(session, user_data)
+    service = UserService(session)
+    user = service.create_user(user_data)
 
     # 2. Создаем модель
     model = MLModel(
@@ -107,13 +110,13 @@ def test_update_user(session):
         last_name="User",
         phone_number="+79998887766"
     )
-    user = create_user(session, user_data)
+    service = UserService(session)
+    user = service.create_user(user_data)
 
     from app.schemas import SUserUpdate
     update_data = SUserUpdate(first_name="UpdatedName", phone_number="+70000000000")
 
-    from app.services.user_service import update_user
-    updated_user = update_user(session, user.id, update_data)
+    updated_user = service.update_user(user.id, update_data)
 
     assert updated_user.first_name == "UpdatedName"
     assert updated_user.phone_number == "+70000000000"

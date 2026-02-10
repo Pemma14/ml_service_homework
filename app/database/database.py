@@ -36,7 +36,7 @@ def get_session() -> Generator[Session, None, None]:
     wait=wait_exponential(multiplier=1, min=2, max=10),
     before_sleep=lambda retry_state: logger.info(f"Retrying DB initialization... (attempt {retry_state.attempt_number})")
 )
-def init_db(drop_all: bool = False):
+def init_db(drop_all: bool = False) -> None:
     try:
         if drop_all:
             Base.metadata.drop_all(engine)

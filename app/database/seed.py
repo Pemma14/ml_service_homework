@@ -18,33 +18,23 @@ def seed_db(session: Session):
     """Наполнение базы данных начальными данными."""
     logger.info("Проверка необходимости инициализации начальных данных...")
 
-    # 1. Сидирование ML-моделей
-    models_to_seed = [
-        {
-            "name": "Logistic Regression",
-            "code_name": "log_reg",
-            "description": "Классическая логистическая регрессия для бинарной классификации",
-            "version": "1.0.0",
-            "cost": Decimal("10.0")
-        },
-        {
-            "name": "Random Forest Classifier",
-            "code_name": "rf_clf",
-            "description": "Модель случайного леса для более точных предсказаний",
-            "version": "1.1.0",
-            "cost": Decimal("25.0")
-        }
-    ]
+    # 1. Сидирование ML-модели
+    model_to_seed = {
+        "name": "Logistic Regression",
+        "code_name": "log_reg",
+        "description": "Классическая логистическая регрессия для бинарной классификации",
+        "version": "1.0.0",
+        "cost": settings.app.DEFAULT_REQUEST_COST
+    }
 
-    for model_data in models_to_seed:
-        existing_model = session.execute(
-            select(MLModel).where(MLModel.code_name == model_data["code_name"])
-        ).scalars().first()
+    existing_model = session.execute(
+        select(MLModel).where(MLModel.code_name == model_to_seed["code_name"])
+    ).scalars().first()
 
-        if not existing_model:
-            logger.info(f"Добавление ML-модели: {model_data['name']}")
-            new_model = MLModel(**model_data)
-            session.add(new_model)
+    if not existing_model:
+        logger.info(f"Добавление ML-модели: {model_to_seed['name']}")
+        new_model = MLModel(**model_to_seed)
+        session.add(new_model)
 
     session.flush()
 

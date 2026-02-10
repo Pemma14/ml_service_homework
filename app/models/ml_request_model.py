@@ -36,6 +36,8 @@ class MLRequest(Base):
         index=True
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    is_published: Mapped[bool] = mapped_column(default=False, server_default=text('false'), nullable=False)
+    message: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     # Связи с другими таблицами
     user: Mapped["User"] = relationship(back_populates="ml_requests")

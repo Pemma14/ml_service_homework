@@ -1,7 +1,7 @@
 import logging
 import sys
 
-def setup_logging():
+def setup_logging() -> None:
     """Настройка базового логирования для всего приложения."""
     logging.basicConfig(
         level=logging.INFO,

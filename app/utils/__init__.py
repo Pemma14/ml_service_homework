@@ -7,6 +7,7 @@ from app.utils.exceptions import (
     MLModelLoadException,
     MLModelNotFoundException,
     MLRequestNotFoundException,
+    MQServiceException,
     ServiceUnavailableException,
     UserAlreadyExistsException,
     UserIsNotPresentException,
@@ -17,3 +18,4 @@ from app.utils.exceptions import (
 )
 from app.utils.handlers import setup_exception_handlers
 from app.utils.logger import setup_logging
+from app.utils.decorators import transactional

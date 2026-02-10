@@ -14,13 +14,24 @@ class AppSettings(BaseModel):
     DEBUG: bool = False
     MODE: str = "DEV"
     MAX_REPLENISH_AMOUNT: Decimal = Decimal("50000.0")
+    DEFAULT_REQUEST_COST: Decimal = Decimal("10.0")
 
 
 class AuthSettings(BaseModel):
     SECRET_KEY: str = "your_secret_key_here_make_it_long_and_secure"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    COOKIE_NAME: str = "access_token"
+    COOKIE_NAME: str = "ml_service_session"
+    SECURE_COOKIE: bool = True
+
+
+class LoggingSettings(BaseModel):
+    LEVEL: str = "INFO"
+    FORMAT: str = "JSON"
+
+
+class CORSSettings(BaseModel):
+    ORIGINS: list[str] = ["http://localhost:3000"]
 
 
 class DbSettings(BaseModel):
@@ -55,6 +66,34 @@ class DbSettings(BaseModel):
         }
 
 
+class MQSettings(BaseModel):
+    HOST: str = "rabbitmq"
+    PORT: int = 5672
+    VIRTUAL_HOST: str = "/"
+    USER: str = "guest"
+    PASSWORD: str = "guest"
+    # Очереди/обменники для задач
+    QUEUE_NAME: str = "ml_task_queue"
+    RPC_QUEUE_NAME: str = "rpc_queue"
+    EXCHANGE_NAME: str = "ml_tasks_exchange"
+    # Очередь/обменник для результатов
+    RESULTS_EXCHANGE_NAME: str = "ml_results_exchange"
+    RESULTS_QUEUE_NAME: str = "ml_results_queue"
+    RESULTS_ROUTING_KEY: str = "ml_results_queue"
+    # Ретрай и соединение
+    RETRY_ATTEMPTS: int = 3
+    RETRY_MULTIPLIER: float = 0.5
+    RETRY_MIN: int = 1
+    RETRY_MAX: int = 5
+    HEARTBEAT: int = 30
+    TIMEOUT: int = 2
+
+    @property
+    def amqp_url(self) -> str:
+        """Формирует URL для подключения (удобно для aio-pika)."""
+        return f"amqp://{self.USER}:{self.PASSWORD}@{self.HOST}:{self.PORT}{self.VIRTUAL_HOST}?heartbeat={self.HEARTBEAT}"
+
+
 class SeedSettings(BaseModel):
     ADMIN_EMAIL: str = "admin@example.org"
     ADMIN_PASSWORD: str = "password"
@@ -67,8 +106,9 @@ class Settings(BaseSettings):
     db: DbSettings = DbSettings()
     seed: SeedSettings = SeedSettings()
     auth: AuthSettings = AuthSettings()
-    bot_token: str = "your_bot_token_here"
-    api_url: str = "http://app:8000"
+    mq: MQSettings = MQSettings()
+    logging: LoggingSettings = LoggingSettings()
+    cors: CORSSettings = CORSSettings()
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),

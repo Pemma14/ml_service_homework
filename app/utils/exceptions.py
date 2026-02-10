@@ -1,3 +1,4 @@
+from typing import Optional, Any
 from fastapi import HTTPException, status
 
 # Класс для исключений, которые связаны с нашим приложением
@@ -5,7 +6,7 @@ class AppException(HTTPException):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     detail = ""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(status_code=self.status_code, detail=self.detail)
 
 # Исключения для работы с пользователями
@@ -43,7 +44,7 @@ class MLInvalidDataException(AppException):
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Некорректные данные для ML-модели"
 
-    def __init__(self, errors: list = None):
+    def __init__(self, errors: Optional[list[Any]] = None) -> None:
         super().__init__()
         if errors:
             self.detail = {"message": self.detail, "errors": errors}
@@ -64,6 +65,15 @@ class TokenExpiredException(AppException):
 class IncorrectEmailOrPasswordException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Неверный email или пароль. Проверьте введенные данные и попробуйте снова."
+
+class MQServiceException(AppException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    detail = "Сервис временно недоступен. Не удалось поставить задачу в очередь."
+
+    def __init__(self, detail: Optional[str] = None) -> None:
+        if detail:
+            self.detail = detail
+        super().__init__()
 
 # Инфраструктурные ошибки
 class InternalServerErrorException(AppException):

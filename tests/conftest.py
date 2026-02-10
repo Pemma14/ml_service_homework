@@ -1,3 +1,8 @@
+import os
+
+# Устанавливаем режим тестирования до загрузки приложения
+os.environ["APP__MODE"] = "TEST"
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

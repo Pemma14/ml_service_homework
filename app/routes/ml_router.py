@@ -1,56 +1,72 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+from typing import List, Dict, Any
 
-from app.database.database import get_session
-from app.models import User, MLModel
-from app.ml import get_ml_engine, MLEngine
-from app.routes.dependencies import get_current_user
-from app.schemas.ml_model_schemas import SMLModel
+from fastapi import APIRouter, Depends, status
+
+from app.config import settings
+from app.models import User
+from app.routes.dependencies import get_current_user, get_ml_request_service
+from app.schemas.ml_task_schemas import MLResult
 from app.schemas.ml_request_schemas import (
     SMLPredictionRequest,
     SMLPredictionResponse,
     SMLRequestHistory
 )
-from app.services import ml_request_service
+from app.services import MLRequestService
+from app.services.mltask_client import MLTaskPublisher, RPCPublisher, get_mq_service, get_rpc_client
 from app.utils import MLRequestNotFoundException
 
 router = APIRouter()
 
-@router.get(
-    "/models",
-    response_model=List[SMLModel],
-    summary="Список доступных моделей",
-    description="Возвращает список всех активных ML-моделей в системе.",
-    response_description="Список доступных ML-моделей"
-)
-async def get_models(session: Session = Depends(get_session)):
-    query = select(MLModel).where(MLModel.is_active == True)
-    result = session.execute(query)
-    return result.scalars().all()
-
 @router.post(
-    "/predict",
+    "/send_task",
     response_model=SMLPredictionResponse,
     summary="Выполнить предсказание",
-    description="Принимает данные, проверяет баланс и возвращает предсказание модели.",
-    response_description="Результаты предсказания и стоимость"
+    description="Отправляет задачу в очередь RabbitMQ и возвращает информацию о запросе.",
+    status_code=status.HTTP_202_ACCEPTED
 )
-async def predict(
+async def send_task(
     request: SMLPredictionRequest,
-    model_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
-    engine: MLEngine = Depends(get_ml_engine),
-    session: Session = Depends(get_session)
-):
-    return ml_request_service.predict(
-        session=session,
-        items=request.data,
+    mq_service: MLTaskPublisher = Depends(get_mq_service),
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> Dict[str, Any]:
+    # Вызываем единый метод ml_request_service
+    db_request = await ml_service.create_and_send_task(
         user=current_user,
-        engine=engine,
-        model_id=model_id
+        input_data=request.data,
+        mq_service=mq_service
     )
+
+    # Возвращаем ответ пользователю
+    return {
+        "request_id": db_request.id,
+        "status": db_request.status,
+        "message": db_request.message
+    }
+
+@router.post(
+    "/send_task_rpc",
+    summary="Выполнить предсказание (синхронно/RPC)",
+    description="Отправляет запрос через RPC и ожидает результат немедленно.",
+    status_code=status.HTTP_200_OK
+)
+async def send_task_rpc(
+    request: SMLPredictionRequest,
+    current_user: User = Depends(get_current_user),
+    rpc_client: RPCPublisher = Depends(get_rpc_client),
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> Any:
+    return await ml_service.execute_rpc_predict(
+        input_data=request.data,
+        rpc_client=rpc_client
+    )
+
+@router.post("/results", summary="Сохранить результат", description="Для воркеров")
+async def send_task_result(
+    result: MLResult,
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> Dict[str, str]:
+    return await ml_service.process_task_result(result)
 
 @router.get(
     "/history",
@@ -61,9 +77,9 @@ async def predict(
 )
 async def get_history(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
-):
-    return ml_request_service.get_all_history(session, current_user.id)
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> List[SMLRequestHistory]:
+    return ml_service.get_all_history(current_user.id)
 
 @router.get(
     "/history/{request_id}",
@@ -75,9 +91,9 @@ async def get_history(
 async def get_request_details(
     request_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
-):
-    request = ml_request_service.get_history_by_id(session, request_id, current_user.id)
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> SMLRequestHistory:
+    request = ml_service.get_history_by_id(request_id, current_user.id)
     if not request:
         raise MLRequestNotFoundException
     return request
