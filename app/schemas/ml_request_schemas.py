@@ -15,7 +15,7 @@ class SMLFeatureItem(SBase):
     clozapine: int = Field(0, alias="Клозапин", description="Клозапин", ge=0, le=1)
     cyp2c19_1_2: int = Field(0, alias="CYP2C19 1/2", description="Генетический маркер CYP2C19 1/2", ge=0, le=1)
     cyp2c19_1_17: int = Field(0, alias="CYP2C19 1/17", description="Генетический маркер CYP2C19 1/17", ge=0, le=1)
-    cyp2c19_17_17: int = Field(0, alias="CYP2C19 *17/*17", description="Генетический маркер CYP2C19 17/17", ge=0, le=1)
+    cyp2c19_17_17: int = Field(0, alias="CYP2C19 *17/*17", description="Генетический маркер CYP2C19 *17/*17", ge=0, le=1)
     cyp2d6_1_3: int = Field(0, alias="CYP2D6 1/3", description="Генетический маркер CYP2D6 1/3", ge=0, le=1)
 
     model_config = {

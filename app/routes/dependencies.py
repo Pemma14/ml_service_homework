@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_session
 from app.models import User
-from app.utils import UserIsNotPresentException
+from app.utils import UserIsNotPresentException, ForbiddenException
 from app.auth.authenticate import authenticate
 from app.services import MLRequestService, BillingService, UserService
 
@@ -30,3 +30,11 @@ async def get_current_user(
         raise UserIsNotPresentException
 
     return user
+
+
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    if not current_user.is_admin:
+        raise ForbiddenException
+    return current_user

@@ -1,0 +1,18 @@
+[project]
+name = "ml-service-ui"
+version = "0.2.0"
+description = "Улучшенный Streamlit frontend для ML Service с темной темой"
+requires-python = ">=3.11"
+dependencies = [
+  "streamlit>=1.39.0",
+  "requests>=2.31.0",
+  "pandas>=2.0.0",
+  "openpyxl>=3.1.0"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []

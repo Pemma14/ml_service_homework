@@ -18,6 +18,10 @@ class UserIsNotPresentException(AppException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Пользователь не найден"
 
+class ForbiddenException(AppException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Недостаточно прав для выполнения действия"
+
 # Ошибки бизнес-логики
 class InsufficientFundsException(AppException):
     status_code = status.HTTP_402_PAYMENT_REQUIRED
@@ -26,6 +30,10 @@ class InsufficientFundsException(AppException):
 class MLRequestNotFoundException(AppException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Запрос с таким ID не существует"
+
+class TransactionNotFoundException(AppException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Транзакция не найдена"
 
 class MLModelNotFoundException(AppException):
     status_code = status.HTTP_404_NOT_FOUND
@@ -50,6 +58,10 @@ class MLInvalidDataException(AppException):
             self.detail = {"message": self.detail, "errors": errors}
 
 # Исключения для аутентификации
+class UnauthorizedException(AppException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Пользователь не авторизован"
+
 class TokenAbsentException(AppException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Токен аутентификации отсутствует. Пожалуйста, войдите в систему."

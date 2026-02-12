@@ -13,7 +13,7 @@ from app.models import (
     TransactionType,
     User,
 )
-from app.utils import InsufficientFundsException, transactional
+from app.utils import InsufficientFundsException, transactional, TransactionNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +122,45 @@ class BillingService:
 
     def get_transactions_history(self, user_id: int) -> List[Transaction]:
         return billing_crud.get_by_user_id(self.session, user_id)
+
+    def get_all_transactions(self) -> List[Transaction]:
+        """Получить все транзакции в системе (Админ)."""
+        return billing_crud.get_all(self.session)
+
+    @transactional
+    def admin_replenish(self, user_id: int, amount: Decimal) -> Transaction:
+        """Прямое пополнение баланса пользователя администратором."""
+        billing_crud.update_user_balance(self.session, user_id, amount)
+        return billing_crud.create_transaction_record(
+            session=self.session,
+            user_id=user_id,
+            amount=amount,
+            type=TransactionType.replenish,
+            status=TransactionStatus.approved,
+            description="Пополнение баланса (Администратор)"
+        )
+
+    @transactional
+    def approve_transaction(self, transaction_id: int) -> Transaction:
+        """Одобрение ожидающей транзакции."""
+        transaction = billing_crud.get_by_id(self.session, transaction_id)
+        if not transaction:
+            raise TransactionNotFoundException
+
+        if transaction.status == TransactionStatus.pending:
+            billing_crud.update_user_balance(self.session, transaction.user_id, transaction.amount)
+            transaction.status = TransactionStatus.approved
+            self.session.flush()
+        return transaction
+
+    @transactional
+    def reject_transaction(self, transaction_id: int) -> Transaction:
+        """Отклонение ожидающей транзакции."""
+        transaction = billing_crud.get_by_id(self.session, transaction_id)
+        if not transaction:
+            raise TransactionNotFoundException
+
+        if transaction.status == TransactionStatus.pending:
+            transaction.status = TransactionStatus.rejected
+            self.session.flush()
+        return transaction

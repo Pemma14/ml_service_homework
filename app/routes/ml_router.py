@@ -56,10 +56,23 @@ async def send_task_rpc(
     rpc_client: RPCPublisher = Depends(get_rpc_client),
     ml_service: MLRequestService = Depends(get_ml_request_service)
 ) -> Any:
-    return await ml_service.execute_rpc_predict(
+    raw = await ml_service.execute_rpc_predict(
         input_data=request.data,
         rpc_client=rpc_client
     )
+
+    # Нормализация ключа: всегда возвращаем "prediction"
+    if isinstance(raw, dict):
+        if "prediction" in raw:
+            return raw
+        if "predictions" in raw:
+            raw["prediction"] = raw.pop("predictions")
+            return raw
+        # Если это словарь без ожидаемых ключей — оборачиваем как есть
+        return {"prediction": raw}
+
+    # Если пришёл список или скаляр — тоже оборачиваем
+    return {"prediction": raw}
 
 @router.post("/results", summary="Сохранить результат", description="Для воркеров")
 async def send_task_result(

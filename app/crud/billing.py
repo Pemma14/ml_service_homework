@@ -12,9 +12,19 @@ def create_transaction(session: Session, transaction: Transaction) -> Transactio
 
 def get_by_user_id(session: Session, user_id: int) -> List[Transaction]:
     """Получить все транзакции пользователя."""
-    query = select(Transaction).where(Transaction.user_id == user_id)
+    query = select(Transaction).where(Transaction.user_id == user_id).order_by(Transaction.created_at.desc())
     result = session.execute(query)
     return list(result.scalars().all())
+
+def get_all(session: Session) -> List[Transaction]:
+    """Получить все транзакции в системе (Админ)."""
+    query = select(Transaction).order_by(Transaction.created_at.desc())
+    result = session.execute(query)
+    return list(result.scalars().all())
+
+def get_by_id(session: Session, transaction_id: int) -> Optional[Transaction]:
+    """Получить транзакцию по ID."""
+    return session.get(Transaction, transaction_id)
 
 def update_user_balance(session: Session, user_id: int, amount: Decimal) -> bool:
     """
