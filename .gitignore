@@ -16,6 +16,7 @@ ENV/
 postgres_data/
 rabbitmq_data/
 .env
+.coverage
 
 # System
 .DS_Store
