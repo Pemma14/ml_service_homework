@@ -32,9 +32,8 @@ class BillingService:
         Создаёт запрос на атомарное пополнение баланса.
         В DEV режиме транзакция сразу одобряется и баланс обновляется атомарно.
         В PROD режиме создается pending транзакция для последующего одобрения.
-
         """
-        if settings.app.MODE == "DEV":
+        if settings.app.MODE in ["DEV", "TEST"]:
             return self._auto_approve_replenishment(user, amount)
         return self._create_pending_replenishment(user, amount)
 

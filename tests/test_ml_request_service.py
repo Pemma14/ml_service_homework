@@ -193,3 +193,71 @@ def test_process_task_result_success(session):
     assert db_request.status == MLRequestStatus.success
     assert db_request.prediction == [0.5]
     assert db_request.completed_at is not None
+
+
+def test_process_task_result_fail_refunds_balance(session):
+    """Тест того, что при ошибке выполнения (fail) баланс возвращается пользователю."""
+    from app.schemas.ml_task_schemas import MLResult
+    from decimal import Decimal
+
+    # 1. Подготовка данных
+    user_data = SUserRegister(
+        email="refund_test@example.com",
+        password="password",
+        first_name="Refund",
+        last_name="Test",
+        phone_number="+79990005559"
+    )
+    service = UserService(session)
+    user = service.create_user(user_data)
+    user.balance = Decimal("100.0")
+    session.commit()
+
+    model = MLModel(
+        name="Test Model",
+        code_name="test_model",
+        version="1.0.0",
+        is_active=True,
+        cost=Decimal("10.0")
+    )
+    session.add(model)
+    session.commit()
+
+    # Имитируем резервирование средств
+    from app.services.billing_service import BillingService
+    billing_service = BillingService(session)
+    billing_service.reserve_funds(user, Decimal("10.0"))
+    assert user.balance == Decimal("90.0")
+
+    db_request = MLRequest(
+        user_id=user.id,
+        model_id=model.id,
+        input_data={"data": "test"},
+        cost=Decimal("10.0"),
+        status=MLRequestStatus.pending
+    )
+    session.add(db_request)
+    session.commit()
+
+    result_data = MLResult(
+        task_id=str(db_request.id),
+        prediction=None,
+        worker_id="worker-1",
+        status="fail",
+        error="Model error"
+    )
+
+    # 2. Вызов метода
+    import asyncio
+    ml_service = MLRequestService(session)
+    asyncio.run(ml_service.process_task_result(result_data))
+    session.commit()
+
+    # 3. Проверки
+    session.refresh(user)
+    session.refresh(db_request)
+
+    # Баланс должен вернуться к 100.0
+    assert user.balance == Decimal("100.0")
+    assert db_request.status == MLRequestStatus.fail
+    assert db_request.errors == [{"error": "Model error"}]
