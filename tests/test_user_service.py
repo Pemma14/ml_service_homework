@@ -2,6 +2,7 @@ from decimal import Decimal
 import pytest
 from app.services.user_service import UserService
 from app.schemas import SUserRegister
+from app.utils import UserAlreadyExistsException
 from app.models import User, MLRequest, Transaction, TransactionType, TransactionStatus, MLRequestStatus, MLModel
 from datetime import datetime, timezone
 
@@ -121,3 +122,46 @@ def test_update_user(session):
     assert updated_user.first_name == "UpdatedName"
     assert updated_user.phone_number == "+70000000000"
     assert updated_user.last_name == "User"  # Не должно измениться
+
+def test_create_user_duplicate_email(session):
+    service = UserService(session)
+    user_data = SUserRegister(
+        email="duplicate@example.com",
+        password="password123",
+        first_name="First",
+        last_name="User",
+        phone_number="+79991112233"
+    )
+    service.create_user(user_data)
+
+    # Попытка создать пользователя с тем же email
+    with pytest.raises(UserAlreadyExistsException):
+        service.create_user(user_data)
+
+def test_delete_user_service(session):
+    service = UserService(session)
+    user_data = SUserRegister(
+        email="delete@example.com",
+        password="password123",
+        first_name="Delete",
+        last_name="Me",
+        phone_number="+79991112244"
+    )
+    user = service.create_user(user_data)
+    user_id = user.id
+
+    # Проверяем, что пользователь существует
+    assert service.get_user_by_id(user_id) is not None
+
+    # Удаляем
+    result = service.delete_user(user_id)
+    assert result is True
+
+    # Проверяем, что пользователя больше нет
+    assert service.get_user_by_id(user_id) is None
+
+def test_delete_non_existent_user(session):
+    service = UserService(session)
+    # Пытаемся удалить пользователя с несуществующим ID
+    result = service.delete_user(9999)
+    assert result is False
