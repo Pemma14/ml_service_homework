@@ -17,6 +17,7 @@ postgres_data/
 rabbitmq_data/
 .env
 .coverage
+.pytest_cache/
 
 # System
 .DS_Store
