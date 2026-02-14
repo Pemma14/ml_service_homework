@@ -1,14 +1,10 @@
+from decimal import Decimal
 import pytest
 from app.models import User, MLModel, Transaction, TransactionType, TransactionStatus
-from app.services.billing_service import (
-    create_replenishment_request,
-    check_balance,
-    process_prediction_payment,
-    get_user_balance,
-    get_transactions_history
-)
+from app.services.billing_service import BillingService
+from app.services.ml_service import MLRequestService
 from app.schemas import STransactionCreate, SUserRegister
-from app.services.user_service import create_user
+from app.services.user_service import UserService
 from app.utils import InsufficientFundsException
 from app.config import settings
 
@@ -22,18 +18,18 @@ def test_replenishment_dev_mode(session):
         last_name="User",
         phone_number="+79990001111"
     )
-    user = create_user(session, user_data)
+    user_service = UserService(session)
+    user = user_service.create_user(user_data)
     initial_balance = user.balance
 
     # Устанавливаем режим DEV для теста
     old_mode = settings.app.MODE
     settings.app.MODE = "DEV"
 
+    billing_service = BillingService(session)
     try:
-        amount = 150.0
-        transaction_data = STransactionCreate(amount=amount)
-
-        transaction = create_replenishment_request(session, user, transaction_data)
+        amount = Decimal("150.0")
+        transaction = billing_service.create_replenishment(user, amount)
 
         # Проверки
         assert transaction.id is not None
@@ -42,59 +38,64 @@ def test_replenishment_dev_mode(session):
         assert user.balance == initial_balance + amount
 
         # Проверка через отдельный запрос баланса
-        assert get_user_balance(session, user.id) == initial_balance + amount
+        assert billing_service.get_user_balance(user.id) == initial_balance + amount
     finally:
         settings.app.MODE = old_mode
 
-def test_check_balance_logic(session):
-    """Тест логики проверки баланса."""
+def test_reserve_funds_logic(session):
+    """Тест логики резервирования (списания) средств."""
     user_data = SUserRegister(
-        email="test_balance@example.com",
+        email="test_reserve@example.com",
         password="password",
-        first_name="Balance",
+        first_name="Reserve",
         last_name="Test",
         phone_number="+79990002222"
     )
-    user = create_user(session, user_data)
-    user.balance = 20.0
+    user_service = UserService(session)
+    user = user_service.create_user(user_data)
+    user.balance = Decimal("20.0")
     session.add(user)
     session.commit()
 
+    billing_service = BillingService(session)
     # 1. Денег достаточно
-    check_balance(session, user.id, 15.0) # Не должно вызывать исключение
+    billing_service.reserve_funds(user, Decimal("15.0"))
+    assert user.balance == Decimal("5.0")
 
     # 2. Денег недостаточно
     with pytest.raises(InsufficientFundsException):
-        check_balance(session, user.id, 25.0)
+        billing_service.reserve_funds(user, Decimal("25.0"))
 
-def test_process_prediction_payment_atomicity(session):
-    """Тест атомарности списания средств за предсказание."""
+def test_create_ml_request_history_atomicity(session):
+    """Тест сохранения истории запроса (перенесен в MLRequestService)."""
     # 1. Создаем пользователя и модель
     user_data = SUserRegister(
-        email="test_payment@example.com",
+        email="test_history_save@example.com",
         password="password",
-        first_name="Payer",
+        first_name="Saver",
         last_name="Test",
         phone_number="+79990003333"
     )
-    user = create_user(session, user_data)
-    user.balance = 50.0
+    user_service = UserService(session)
+    user = user_service.create_user(user_data)
 
     model = MLModel(
         name="Test Model",
         code_name="test_model",
-        version="1.0"
+        version="1.0",
+        cost=Decimal("10.0")
     )
     session.add(model)
     session.flush()
 
-    # 2. Выполняем списание
-    cost = 12.5
+    billing_service = BillingService(session)
+    ml_service = MLRequestService(session)
+    # 2. Сохраняем историю
+    cost = Decimal("12.5")
     input_data = [{"features": [1, 2, 3, 4, 5]}]
-    predictions = ["Result: Responder"]
+    predictions = ["результат"]
 
-    request = process_prediction_payment(
-        session=session,
+    request = ml_service.create_request_history(
         user=user,
         model_id=model.id,
         cost=cost,
@@ -104,10 +105,11 @@ def test_process_prediction_payment_atomicity(session):
 
     # 3. Проверяем результат
     assert request.id is not None
-    assert user.balance == 37.5
+    # Баланс НЕ должен был измениться в этом методе (он меняется в reserve_funds)
+    # Но в этом тесте мы НЕ вызывали reserve_funds, поэтому баланс остается исходным (0.0)
 
     # Проверяем транзакцию в базе
-    history = get_transactions_history(session, user.id)
+    history = billing_service.get_transactions_history(user.id)
     payment_tx = next((tx for tx in history if tx.type == TransactionType.payment), None)
 
     assert payment_tx is not None
@@ -124,15 +126,17 @@ def test_transactions_history_retrieval(session):
         last_name="User",
         phone_number="+79990004444"
     )
-    user = create_user(session, user_data)
+    user_service = UserService(session)
+    user = user_service.create_user(user_data)
 
     # Создаем несколько транзакций вручную
-    tx1 = Transaction(user_id=user.id, amount=100.0, type=TransactionType.replenish, status=TransactionStatus.approved)
-    tx2 = Transaction(user_id=user.id, amount=-10.0, type=TransactionType.payment, status=TransactionStatus.approved)
+    tx1 = Transaction(user_id=user.id, amount=Decimal("100.0"), type=TransactionType.replenish, status=TransactionStatus.approved)
+    tx2 = Transaction(user_id=user.id, amount=Decimal("-10.0"), type=TransactionType.payment, status=TransactionStatus.approved)
     session.add_all([tx1, tx2])
     session.commit()
 
-    history = get_transactions_history(session, user.id)
+    billing_service = BillingService(session)
+    history = billing_service.get_transactions_history(user.id)
     assert len(history) == 2
-    assert any(tx.amount == 100.0 for tx in history)
-    assert any(tx.amount == -10.0 for tx in history)
+    assert any(tx.amount == Decimal("100.0") for tx in history)
+    assert any(tx.amount == Decimal("-10.0") for tx in history)
