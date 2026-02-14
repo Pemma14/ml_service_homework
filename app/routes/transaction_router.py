@@ -1,10 +1,8 @@
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
-from app.database.database import get_session
 from app.models import User
-from app.routes.dependencies import get_current_user, get_billing_service, get_current_admin_user
+from app.routes.dependencies import get_current_user, get_billing_service
 from app.schemas.transaction_schemas import STransaction, STransactionCreate
 from app.services import BillingService
 
@@ -49,56 +47,3 @@ async def get_history(
 ) -> List[STransaction]:
     return billing_service.get_transactions_history(current_user.id)
 
-# === Админские эндпоинты ===
-
-@router.get(
-    "/admin/all",
-    response_model=List[STransaction],
-    summary="Все транзакции системы (Админ)",
-    description="Возвращает историю всех транзакций в системе. Только для администраторов.",
-)
-async def get_all_transactions(
-    admin_user: User = Depends(get_current_admin_user),
-    billing_service: BillingService = Depends(get_billing_service)
-) -> List[STransaction]:
-    return billing_service.get_all_transactions()
-
-@router.post(
-    "/admin/replenish/{user_id}",
-    response_model=STransaction,
-    summary="Прямое пополнение (Админ)",
-    description="Администратор напрямую пополняет баланс пользователя.",
-)
-async def admin_replenish(
-    user_id: int,
-    transaction_data: STransactionCreate,
-    admin_user: User = Depends(get_current_admin_user),
-    billing_service: BillingService = Depends(get_billing_service)
-) -> STransaction:
-    return billing_service.admin_replenish(user_id, transaction_data.amount)
-
-@router.post(
-    "/admin/approve/{transaction_id}",
-    response_model=STransaction,
-    summary="Одобрение транзакции (Админ)",
-    description="Одобрение ожидающей транзакции на пополнение.",
-)
-async def approve_transaction(
-    transaction_id: int,
-    admin_user: User = Depends(get_current_admin_user),
-    billing_service: BillingService = Depends(get_billing_service)
-) -> STransaction:
-    return billing_service.approve_transaction(transaction_id)
-
-@router.post(
-    "/admin/reject/{transaction_id}",
-    response_model=STransaction,
-    summary="Отклонение транзакции (Админ)",
-    description="Отклонение ожидающей транзакции на пополнение.",
-)
-async def reject_transaction(
-    transaction_id: int,
-    admin_user: User = Depends(get_current_admin_user),
-    billing_service: BillingService = Depends(get_billing_service)
-) -> STransaction:
-    return billing_service.reject_transaction(transaction_id)
