@@ -49,6 +49,7 @@ CUSTOM_CSS = f"""
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         transition: all 0.3s ease;
         margin-bottom: 1rem;
+        min-height: 360px;
         height: 100%;
     }}
 
@@ -119,6 +120,11 @@ CUSTOM_CSS = f"""
         width: auto !important;
         min-width: max-content !important;
         flex: 0 0 auto !important;
+    }}
+
+    /* Прижимаем последнюю колонку с маркером .header-item к правому краю */
+    [data-testid="column"]:has(.header-item):last-child {{
+    margin-left: auto !important;
     }}
 
     /* Стилизуем кнопки внутри такой колонки */
@@ -293,7 +299,7 @@ CUSTOM_CSS = f"""
     /* === Хедер === */
     [data-testid="stVerticalBlock"]:has(div#header-container) {{
         position: fixed !important;
-        top: 2.8rem !important; /* Еще выше к системной панели */
+        top: 0 rem !important; /* Еще выше к системной панели */
         left: 0 !important;
         right: 0 !important;
         z-index: 999990 !important;

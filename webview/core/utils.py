@@ -151,8 +151,15 @@ def validate_item(item: Dict[str, Any]) -> Tuple[bool, Dict[str, str], Dict[str,
     return len(errs) == 0, errs, norm, list(set(warnings))
 
 
-def parse_uploaded_file(file) -> List[Dict[str, Any]]:
-    """Парсит загруженный файл (JSON, CSV или Excel)."""
+def parse_uploaded_file(file_or_list) -> List[Dict[str, Any]]:
+    """Парсит загруженный файл или список файлов (JSON, CSV или Excel)."""
+    if isinstance(file_or_list, list):
+        all_data = []
+        for f in file_or_list:
+            all_data.extend(parse_uploaded_file(f))
+        return all_data
+
+    file = file_or_list
     name = (file.name or "").lower()
     content = file.read()
     file.seek(0)
@@ -230,7 +237,7 @@ def create_excel_download(df: pd.DataFrame, sheet_name: str = "Data") -> bytes:
         raise ValueError(f"Ошибка при создании Excel: {e}")
 
 
-def prepare_results_df(input_data: List[Dict[str, Any]], prediction: Any) -> pd.DataFrame:
+def prepare_results_df(input_data: List[Dict[str, Any]], prediction: Any, status: str = None) -> pd.DataFrame:
     """Объединяет входные данные и предсказания в один DataFrame."""
     if not input_data:
         return pd.DataFrame()
@@ -274,7 +281,7 @@ def show_prediction_result(res: Any) -> None:
                 else:
                     st.write(pred)
 
-            # Служебная информация
+            # Служебная информация (ID запроса и примечание удалены по просьбе пользователя)
             meta_lines = []
             if "status" in res:
                 meta_lines.append(f"**Статус:** {status_label(str(res['status']))}")

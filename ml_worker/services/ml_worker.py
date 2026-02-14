@@ -39,8 +39,12 @@ class MLWorker(BaseWorker):
             # 1. Выполнение инференса
             try:
                 logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id}...")
-                # Оборачиваем в список, так как MLEngine.predict ожидает список
-                prediction = ml_engine.predict([task.features])
+                # MLEngine.predict ожидает список объектов
+                if isinstance(task.features, list):
+                    prediction = ml_engine.predict(task.features)
+                else:
+                    prediction = ml_engine.predict([task.features])
+
                 # Приводим к списку результатов (даже если один элемент), чтобы API получал консистентный List[Any]
                 if prediction is not None and not isinstance(prediction, list):
                     prediction = [prediction]

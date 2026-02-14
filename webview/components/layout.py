@@ -6,7 +6,6 @@ from webview.core.utils import is_valid_url
 #САЙДБАР
 def render_sidebar(api):
     # Навигация
-    st.markdown(f"### {ICONS['home']} Меню")
     if st.button(f"{ICONS['home']} Главная", use_container_width=True, key="sidebar_home"):
         st.session_state.active_tab = "home"
         st.rerun()
@@ -15,9 +14,11 @@ def render_sidebar(api):
         if st.button(f"{ICONS['user']} Личный кабинет", use_container_width=True, key="sidebar_cabinet"):
             st.session_state.active_tab = "cabinet"
             st.rerun()
-    st.markdown("---")
 
-    st.markdown(f"### {ICONS['settings']} Настройки")
+    if st.session_state.get("token"):
+        if st.button(f"{ICONS['settings']} Настройки", use_container_width=True, key="sidebar_settings"):
+            st.session_state.active_tab = "settings"
+            st.rerun()
 
     # Профиль пользователя
     if st.session_state.get("token"):
@@ -118,14 +119,14 @@ def render_header(api):
     # Хедер
     with st.container(key="header-container"):
         # Динамический расчет весов для кнопок: Лого, Спейсер, Вкладки..., Профиль/Логин
-        logo_weight = 2.2
-        spacer_weight = 15.0
+        logo_weight = 2.5
+        spacer_weight = 28.0
 
         # Веса для вкладок
-        tab_weights = [1.0 for t in tabs]
+        tab_weights = [1.2 for t in tabs]
 
         # Вес для кнопки авторизации/профиля
-        auth_weight = 1.5
+        auth_weight = 2.5
 
         weights = [logo_weight, spacer_weight] + tab_weights + [auth_weight]
         cols = st.columns(weights, vertical_alignment="center", gap="small")
@@ -158,7 +159,10 @@ def render_header(api):
             if st.session_state.get("token") and st.session_state.get("me"):
                 email = st.session_state.me.get("email", "user")
                 username = email.split('@')[0]
-                with st.popover(f"👤 {username}"):
+                if len(username) > 12:
+                    username = username[:10] + "..."
+
+                with st.popover(f"👤"):
                     st.markdown(f"👤 **{email}**")
                     if st.session_state.balance is not None:
                         st.markdown(f"💰 **Баланс:** `{st.session_state.balance}` кр.")

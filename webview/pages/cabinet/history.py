@@ -51,13 +51,13 @@ def render_history(api):
 
                         if input_data:
                             results_df = prepare_results_df(input_data, prediction)
-                            with st.expander(f"📥 Экспорт данных запроса #{rid}"):
+                            with st.expander(f"📥 Экспорт данных запроса"):
                                 st.dataframe(results_df, use_container_width=True, hide_index=True)
                                 ec1, ec2 = st.columns(2)
                                 with ec1:
                                     st.download_button(
                                         "📊 Скачать CSV",
-                                        data=results_df.to_csv(index=False).encode("utf-8"),
+                                        data=results_df.to_csv(index=False, sep=';').encode("utf-8-sig"),
                                         file_name=f"ml_request_{rid}.csv",
                                         mime="text/csv",
                                         use_container_width=True,

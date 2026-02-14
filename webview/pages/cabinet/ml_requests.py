@@ -12,18 +12,20 @@ from webview.core.utils import (
     parse_tsv,
     create_excel_template,
     prepare_results_df,
-    create_excel_download
+    create_excel_download,
+    requests_to_df,
+    status_label
 )
 from webview.services.api_client import UnauthorizedError
 from webview.services.state import refresh_user_data, set_auth, handle_api_error
 from webview.services.logger import logger
 
-@st.dialog("🚀 Подтверждение отправки")
+@st.dialog("Подтверждение отправки")
 def confirm_ml_submission_dialog(api, to_send, send_mode, est_cost):
     st.write(f"Вы собираетесь отправить **{len(to_send)}** ML-запросов.")
     st.write(f"Общая стоимость составит **{est_cost}** кредитов.")
 
-    with st.expander("📝 Просмотр данных", expanded=True):
+    with st.expander("Просмотр данных", expanded=True):
         if len(to_send) == 1:
             row = to_send[0]
             for k, v in row.items():
@@ -52,6 +54,9 @@ def confirm_ml_submission_dialog(api, to_send, send_mode, est_cost):
 
 
 def render_ml_requests(api):
+    if 'file_uploader_key' not in st.session_state:
+        st.session_state['file_uploader_key'] = 0
+
     # 0. Обработка подтвержденной отправки
     if st.session_state.get("ml_confirmed"):
         st.session_state.ml_confirmed = False
@@ -64,10 +69,11 @@ def render_ml_requests(api):
                 with st.spinner("Выполнение запросов..."):
                     if send_mode.startswith("⏱️"):
                         result = api.send_task(to_send)
-                        st.success("Запросы успешно отправлены в очередь!")
+                        st.session_state.last_bg_task_id = result.get("request_id")
+                        st.success(f"✅ {len(to_send)} строк успешно отправлены в очередь на обработку!")
                     else:
                         result = api.send_task_rpc(to_send)
-                        st.success("Все запросы успешно выполнены!")
+                        st.success(f"⚡ Обработка {len(to_send)} строк завершена успешно!")
 
                 st.session_state.last_result = result
                 st.session_state.last_input = to_send
@@ -108,9 +114,9 @@ def render_ml_requests(api):
         # Шаблоны файлов для загрузки
         with st.expander("Шаблоны файлов для загрузки"):
             # CSV шаблон
-            csv_header = ",".join(REQUIRED_ALIAS_ORDER)
-            csv_example_row = ",".join(["35", "1", "0", "0", "1", "0", "0"])
-            csv_content = f"{csv_header}\n{csv_example_row}\n".encode("utf-8")
+            csv_header = ";".join(REQUIRED_ALIAS_ORDER)
+            csv_example_row = ";".join(["35", "1", "0", "0", "1", "0", "0"])
+            csv_content = f"{csv_header}\n{csv_example_row}\n".encode("utf-8-sig")
             st.download_button(
                 "⬇️ Скачать шаблон CSV",
                 data=csv_content,
@@ -152,21 +158,23 @@ def render_ml_requests(api):
                 st.error(f"Не удалось создать Excel шаблон: {e}")
 
         file = st.file_uploader(
-            "Загрузите JSON, CSV или Excel файл",
+            "Загрузите JSON, CSV или Excel файл(ы)",
             type=["json", "csv", "xlsx", "xls"],
-            help="Файл должен содержать необходимые поля для предсказания",
-            key="upload_file"
+            help="Файлы должны содержать необходимые поля для предсказания",
+            key=f"upload_file_{st.session_state['file_uploader_key']}",
+            accept_multiple_files=True
         )
         c_up1, _ = st.columns([1,3])
         with c_up1:
-            if st.button("🧹 Очистить", key="clear_upload"):
-                st.session_state.upload_file = None
-                batch = []
-                st.rerun()
+            def clear_file():
+                st.session_state['file_uploader_key'] += 1
+
+        st.button("🧹 Очистить", key="clear_upload", on_click=clear_file)
         if file:
             try:
                 batch = parse_uploaded_file(file)
-                st.success(f"{ICONS['success']} Загружено записей: {len(batch)}")
+                file_count = len(file) if isinstance(file, list) else 1
+                st.success(f"{ICONS['success']} Загружено записей: {len(batch)} из {file_count} файл(ов)")
             except Exception as e:
                 st.error(f"{ICONS['error']} Ошибка: {e}")
     elif mode == "📋 Вставка из буфера":
@@ -178,10 +186,10 @@ def render_ml_requests(api):
         )
         c_pt1, _ = st.columns([1,3])
         with c_pt1:
-            if st.button("🧹 Очистить", key="clear_paste"):
+            def clear_paste():
                 st.session_state.paste_text = ""
-                batch = []
-                st.rerun()
+
+        st.button("🧹 Очистить", key="clear_paste", on_click=clear_paste)
         if paste_text:
             try:
                 batch = parse_tsv(paste_text)
@@ -202,10 +210,15 @@ def render_ml_requests(api):
 
         for idx, target_col in enumerate(REQUIRED_ALIAS_ORDER):
             with cols[idx % 3]:
+                # Умный дефолт: если название колонки совпадает с целевым
+                default_index = 0
+                if target_col in all_keys:
+                    default_index = all_keys.index(target_col) + 1
+
                 selected = st.selectbox(
                     f"Поле: {target_col}",
                     options=["-- Не выбрано --"] + all_keys,
-                    index=0,
+                    index=default_index,
                     key=f"map_{target_col}"
                 )
                 if selected != "-- Не выбрано --":
@@ -223,7 +236,7 @@ def render_ml_requests(api):
             batch = new_batch
 
         with st.expander("Предпросмотр данных после сопоставления"):
-            st.json(batch)
+            st.data_editor(batch, use_container_width=True, hide_index=True)
 
     # 3. Основной раздел ввода и отправки
     st.markdown("---")
@@ -336,16 +349,18 @@ def render_ml_requests(api):
             help=btn_help
         )
 
-        if col_clear.button("🧹 Очистить всё", use_container_width=True, help="Сбросить все поля и файлы"):
-            st.session_state['age_input'] = ''
-            for _k in ['vnn_pp_label','clozapine_label','cyp2c19_1_2_label','cyp2c19_1_17_label','cyp2c19_17_17_label','cyp2d6_1_3_label']:
-                st.session_state[_k] = '-- Не выбрано --'
-            st.session_state['upload_file'] = None
-            st.session_state['paste_text'] = ''
-            try:
-                for _col in REQUIRED_ALIAS_ORDER: st.session_state[f'map_{_col}'] = '-- Не выбрано --'
-            except Exception: pass
-            st.rerun()
+    def clear_all_inputs():
+        st.session_state['age_input'] = ''
+        for _k in ['vnn_pp_label','clozapine_label','cyp2c19_1_2_label','cyp2c19_1_17_label','cyp2c19_17_17_label','cyp2d6_1_3_label']:
+            st.session_state[_k] = '-- Не выбрано --'
+        st.session_state['file_uploader_key'] += 1
+        st.session_state['paste_text'] = ''
+        try:
+            for _col in REQUIRED_ALIAS_ORDER: st.session_state[f'map_{_col}'] = '-- Не выбрано --'
+        except Exception: pass
+
+    if col_clear.button("🧹 Очистить всё", use_container_width=True, help="Сбросить все поля и файлы", on_click=clear_all_inputs):
+        st.rerun()
 
     # 4. Обработка отправки
     if submitted and to_send:
@@ -361,10 +376,11 @@ def render_ml_requests(api):
                 with st.spinner("Выполнение запросов..."):
                     if send_mode.startswith("⏱️"):
                         result = api.send_task(to_send)
-                        st.success("Запросы успешно отправлены в очередь!")
+                        st.session_state.last_bg_task_id = result.get("request_id")
+                        st.success(f"✅ {len(to_send)} строк успешно отправлены в очередь на обработку!")
                     else:
                         result = api.send_task_rpc(to_send)
-                        st.success("Все запросы успешно выполнены!")
+                        st.success(f"⚡ Обработка {len(to_send)} строк завершена успешно!")
 
                     st.session_state.last_result = result
                     st.session_state.last_input = to_send
@@ -388,14 +404,14 @@ def render_ml_requests(api):
         results_df = prepare_results_df(last_input, pred)
 
         if not results_df.empty:
-            st.dataframe(results_df, use_container_width=True, hide_index=True)
+            # Таблица удалена по просьбе пользователя
 
             col_ex1, col_ex2, col_ex3 = st.columns(3)
 
             with col_ex1:
                 st.download_button(
-                    "📊 Скачать CSV (Полный)",
-                    data=results_df.to_csv(index=False).encode("utf-8"),
+                    "📊 Скачать CSV",
+                    data=results_df.to_csv(index=False, sep=';').encode("utf-8-sig"),
                     file_name=f"ml_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
                     use_container_width=True,
@@ -406,7 +422,7 @@ def render_ml_requests(api):
                 try:
                     excel_data = create_excel_download(results_df, sheet_name="ML Results")
                     st.download_button(
-                        "📗 Скачать Excel (Полный)",
+                        "📗 Скачать Excel",
                         data=excel_data,
                         file_name=f"ml_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -418,7 +434,7 @@ def render_ml_requests(api):
 
             with col_ex3:
                 st.download_button(
-                    "📦 Скачать JSON (Raw)",
+                    "📦 Скачать JSON",
                     data=json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"),
                     file_name=f"ml_raw_res_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json",
@@ -437,3 +453,69 @@ def render_ml_requests(api):
             st.session_state.ml_send_mode,
             st.session_state.ml_est_cost
         )
+
+    # 6. Мониторинг
+    render_task_monitoring(api)
+
+
+def render_task_monitoring(api):
+    if "last_bg_task_id" not in st.session_state:
+        return
+
+    rid = st.session_state.last_bg_task_id
+
+    # Контейнер для мониторинга
+    monitor_placeholder = st.empty()
+
+    with monitor_placeholder.container(border=True):
+        st.markdown(f"#### {ICONS['history']} Мониторинг задачи")
+
+        try:
+            details = api.get_request_details(rid)
+            status = str(details.get("status", "")).lower()
+
+            if status in ("success", "fail"):
+                # Задача завершена
+                st.session_state.last_result = details
+                # Очищаем ID фоновой задачи, так как она готова
+                del st.session_state.last_bg_task_id
+
+                if status == "success":
+                    st.success("✅ Задача успешно выполнена!")
+                else:
+                    st.error("❌ Ошибка при выполнении задачи.")
+
+                # Показываем результат
+                show_prediction_result(details)
+
+                # Обновляем данные пользователя (баланс)
+                refresh_user_data(api)
+
+                # Кнопка для скрытия блока мониторинга
+                if st.button("Ок", use_container_width=True):
+                    st.rerun()
+            else:
+                # Задача в процессе
+                st.info(f"Статус задачи: {status_label(status)}")
+                st.markdown("""
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="stSpinner"></div>
+                        <span>Ожидание завершения обработки... Статус обновится автоматически.</span>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                # Кнопка для принудительного обновления
+                if st.button("🔄 Обновить сейчас", key="manual_refresh_task"):
+                    st.rerun()
+
+                # Автоматическое обновление через 3 секунды
+                import time
+                time.sleep(3)
+                st.rerun()
+
+        except Exception as e:
+            st.error(f"Не удалось получить статус: {e}")
+            if st.button("Попробовать снова"):
+                st.rerun()
+
+
