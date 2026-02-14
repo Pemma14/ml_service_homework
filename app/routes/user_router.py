@@ -2,8 +2,8 @@ import logging
 from fastapi import APIRouter, Depends, status
 
 from app.models import User
-from app.routes.dependencies import get_current_user, get_user_service, get_current_admin_user
-from app.schemas.user_schemas import SUserRegister, SUserAuth, SUser
+from app.routes.dependencies import get_current_user, get_user_service
+from app.schemas.user_schemas import SUserRegister, SUserAuth, SUser, SUserUpdate
 from app.services import UserService
 from app.auth.jwt_handler import create_access_token
 
@@ -65,14 +65,16 @@ async def logout_user():
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-@router.get(
-    "/all",
-    response_model=list[SUser],
-    summary="Все пользователи (Админ)",
-    description="Возвращает список всех пользователей системы. Только для администраторов.",
+@router.patch(
+    "/me",
+    response_model=SUser,
+    summary="Обновление профиля",
+    description="Позволяет текущему пользователю обновить свои данные: имя, фамилию или телефон.",
 )
-async def read_all_users(
-    admin_user: User = Depends(get_current_admin_user),
+async def update_me(
+    user_update: SUserUpdate,
+    current_user: User = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service)
 ):
-    return user_service.get_all_users()
+    return user_service.update_user(current_user.id, user_update)
+

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import EmailStr
 from sqlalchemy import func, select
@@ -21,15 +21,6 @@ class UserService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.hasher = HashPassword()
-
-    def get_all_users(self) -> List[User]:
-        """
-        Получить всех пользователей.
-
-        Returns:
-            Список всех пользователей
-        """
-        return user_crud.get_all(self.session)
 
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """

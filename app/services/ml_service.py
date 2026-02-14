@@ -111,8 +111,10 @@ class MLRequestService:
         db_request.message = "Запрос принят и находится в обработке"
         return db_request
 
+    @transactional
     async def execute_rpc_predict(
         self,
+        user: User,
         input_data: Any,
         rpc_client: RPCPublisher,
     ) -> Any:
@@ -121,20 +123,36 @@ class MLRequestService:
         prepared_data = self._prepare_input_data(input_data)
         num_rows = len(prepared_data) if isinstance(prepared_data, list) else 1
 
-        # 2. Вычисляем динамический таймаут: базовые 15с + 0.2с на каждую строку
+        # 2. Создаем запрос и резервируем средства
+        db_request = self.create_pending_request(user, prepared_data)
+        self.session.flush()
+
+        # 3. Вычисляем динамический таймаут
         dynamic_timeout = max(15.0, 10.0 + (num_rows * 0.2))
-        logger.info(f"Выполнение RPC-запроса для {num_rows} строк. Таймаут: {dynamic_timeout}с")
+        logger.info(f"Выполнение RPC-запроса №{db_request.id} для {num_rows} строк. Таймаут: {dynamic_timeout}с")
 
-        # 3. Делаем RPC вызов
+        # 4. Делаем RPC вызов
         payload = json.dumps(prepared_data).encode()
-        response_bytes = await rpc_client.call(
-            payload,
-            routing_key=settings.mq.RPC_QUEUE_NAME,
-            timeout=dynamic_timeout
-        )
+        try:
+            response_bytes = await rpc_client.call(
+                payload,
+                routing_key=settings.mq.RPC_QUEUE_NAME,
+                timeout=dynamic_timeout
+            )
+            prediction = json.loads(response_bytes)
 
-        # 4. Возвращаем результат
-        return json.loads(response_bytes)
+            # 5. Обновляем результат (в той же транзакции)
+            self.update_request_result(
+                request_id=db_request.id,
+                status=MLRequestStatus.success,
+                prediction=prediction
+            )
+            return prediction
+        except Exception as e:
+            logger.error(f"Ошибка RPC-вызова для запроса №{db_request.id}: {e}")
+            # При исключении @transactional сделает rollback,
+            # поэтому запись в БД не сохранится, и деньги вернутся (баланс в сессии откатится).
+            raise e
 
     @transactional
     async def process_task_result(self, result: MLResult) -> Dict[str, str]:

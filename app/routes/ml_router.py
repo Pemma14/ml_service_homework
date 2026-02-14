@@ -57,6 +57,7 @@ async def send_task_rpc(
     ml_service: MLRequestService = Depends(get_ml_request_service)
 ) -> Any:
     raw = await ml_service.execute_rpc_predict(
+        user=current_user,
         input_data=request.data,
         rpc_client=rpc_client
     )
