@@ -60,11 +60,12 @@ class APIClient:
             raise UnauthorizedError(message, status_code=status, data=data)
         raise APIError(message, status_code=status, data=data)
 
-    def post(self, path: str, payload: dict) -> dict:
+    def post(self, path: str, payload: dict, timeout: int | None = None) -> dict:
         """Выполняет POST запрос."""
         url = self.base_url + path
         logger.debug(f"API POST Request: {url}", payload=payload)
-        resp = requests.post(url, json=payload, headers=self._headers(), timeout=API_TIMEOUT)
+        t = timeout or API_TIMEOUT
+        resp = requests.post(url, json=payload, headers=self._headers(), timeout=t)
         logger.debug(f"API POST Response: {resp.status_code}")
         self._handle_error(resp)
         return resp.json()
@@ -117,7 +118,10 @@ class APIClient:
 
     def send_task_rpc(self, data: list) -> dict:
         """Отправляет задачу через RPC (синхронно)."""
-        return self.post("/api/v1/requests/send_task_rpc", {"data": data})
+        # Динамический таймаут для RPC: базовые 20с + 0.3с на строку (чуть больше, чем в бэкенде)
+        num_rows = len(data) if isinstance(data, list) else 1
+        dynamic_timeout = max(30, 20 + int(num_rows * 0.3))
+        return self.post("/api/v1/requests/send_task_rpc", {"data": data}, timeout=dynamic_timeout)
 
     def get_request_history(self) -> list:
         """Получает историю ML-запросов."""

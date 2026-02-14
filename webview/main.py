@@ -18,10 +18,11 @@ from webview.components.layout import render_sidebar, render_header
 
 # Импорт страниц
 from webview.pages.home import render_home
-from webview.pages.cabinet.dashboard import render_dashboard
+from webview.pages.cabinet.overview import render_overview
 from webview.pages.cabinet.balance import render_balance
 from webview.pages.cabinet.ml_requests import render_ml_requests
 from webview.pages.cabinet.history import render_history
+from webview.pages.cabinet.feedback import render_feedback
 from webview.pages.admin import render_admin
 from webview.pages.api_docs import render_api_docs
 
@@ -72,10 +73,11 @@ elif active_tab == "cabinet":
     else:
         # Формируем список вкладок
         tabs_labels = [
+            f"{ICONS['info']} Общая информация",
             f"{ICONS['balance']} Баланс",
             f"{ICONS['ml']} Предсказание",
             f"{ICONS['history']} История",
-            f"{ICONS['chart']} Аналитика"
+            f"{ICONS['feedback']} Обратная связь"
         ]
 
         # Если админ - добавляем админ-панель первой
@@ -85,20 +87,22 @@ elif active_tab == "cabinet":
         sub_tabs = st.tabs(tabs_labels)
 
         if is_admin():
-            admin_tab, balance_tab, ml_tab, history_tab, analytics_tab = sub_tabs
+            admin_tab, info_tab, balance_tab, ml_tab, history_tab, feedback_tab = sub_tabs
             with admin_tab:
                 render_admin(api)
         else:
-            balance_tab, ml_tab, history_tab, analytics_tab = sub_tabs
+            info_tab, balance_tab, ml_tab, history_tab, feedback_tab = sub_tabs
 
+        with info_tab:
+            render_overview(api)
         with balance_tab:
             render_balance(api)
         with ml_tab:
             render_ml_requests(api)
         with history_tab:
             render_history(api)
-        with analytics_tab:
-            render_dashboard(api)
+        with feedback_tab:
+            render_feedback(api)
 
 # 3. REST API
 elif active_tab == "api":

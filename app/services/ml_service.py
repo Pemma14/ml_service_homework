@@ -69,12 +69,9 @@ class MLRequestService:
 
     #Функция для создания MLтаски из запроса
     def _build_ml_task(self, db_request: MLRequest, features: Any, user_id: int) -> MLTask:
-        # Берем первый элемент из списка признаков, если API прислал список
-        feat_data = features[0] if isinstance(features, list) and len(features) > 0 else features
-
         return MLTask(
             task_id=str(db_request.id),
-            features=feat_data,
+            features=features,
             model=db_request.ml_model.code_name,
             user_id=user_id,
         )
@@ -122,16 +119,21 @@ class MLRequestService:
         import json
         # 1. Подготавливаем данные
         prepared_data = self._prepare_input_data(input_data)
+        num_rows = len(prepared_data) if isinstance(prepared_data, list) else 1
 
-        # 2. Делаем RPC вызов
+        # 2. Вычисляем динамический таймаут: базовые 15с + 0.2с на каждую строку
+        dynamic_timeout = max(15.0, 10.0 + (num_rows * 0.2))
+        logger.info(f"Выполнение RPC-запроса для {num_rows} строк. Таймаут: {dynamic_timeout}с")
+
+        # 3. Делаем RPC вызов
         payload = json.dumps(prepared_data).encode()
         response_bytes = await rpc_client.call(
             payload,
             routing_key=settings.mq.RPC_QUEUE_NAME,
-            timeout=15.0
+            timeout=dynamic_timeout
         )
 
-        # 3. Возвращаем результат
+        # 4. Возвращаем результат
         return json.loads(response_bytes)
 
     @transactional

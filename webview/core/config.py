@@ -60,6 +60,7 @@ ICONS = {
     "info": "ℹ️",
     "chart": "📈",
     "settings": "⚙️",
+    "feedback": "💬",
 }
 
 # Status mapping
