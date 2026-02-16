@@ -68,11 +68,10 @@ async def lifespan(application: FastAPI):
         await application.state.results_consumer.stop()
     if application.state.mq_service:
         await application.state.mq_service.close()
+        await application.state.mq_service.connection_pool.close()
+
     if application.state.rpc_client:
         await application.state.rpc_client.close()
-
-    if application.state.mq_service:
-        await application.state.mq_service.connection_pool.close()
 
     logger.info("RabbitMQ connections closed and results consumer stopped")
 
