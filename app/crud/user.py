@@ -4,11 +4,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.models import User
 
-def get_all(session: Session) -> List[User]:
-    """Получить всех пользователей."""
-    query = select(User)
-    result = session.execute(query)
-    return result.scalars().all()
 
 def get_by_id(session: Session, user_id: int) -> Optional[User]:
     """Получить пользователя по ID."""

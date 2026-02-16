@@ -15,6 +15,7 @@ from aio_pika.pool import Pool
 from app.routes.transaction_router import router as transaction_router
 from app.routes.ml_router import router as ml_router
 from app.routes.user_router import router as user_router
+from app.routes.admin_router import router as admin_router
 from app.routes.home_router import router as home_router
 from app.utils import setup_exception_handlers, setup_logging
 
@@ -104,6 +105,7 @@ def create_application() -> FastAPI:
     application.include_router(user_router, prefix="/api/v1/users", tags=["Users"])
     application.include_router(transaction_router, prefix="/api/v1/balance", tags=["Transactions"])
     application.include_router(ml_router, prefix="/api/v1/requests", tags=["Requests"])
+    application.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
 
     return application
 
