@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import EmailStr, Field
 
+from app.models.user_model import UserRole
 from app.schemas.base_schema import SBase
 
 
@@ -25,7 +26,7 @@ class SUser(SBase):
     last_name: str
     phone_number: str
     balance: Decimal
-    role: str
+    role: UserRole
 
 
 class SUserUpdate(SBase):
@@ -36,6 +37,11 @@ class SUserUpdate(SBase):
         pattern=r"^\+?[1-9]\d{10,14}$",
         description="Номер телефона"
     )
+
+
+class SUserAdminUpdate(SUserUpdate):
+    balance: Optional[Decimal] = Field(None, ge=0, description="Баланс")
+    role: Optional[UserRole] = Field(None, description="Роль пользователя")
 
 
 class SUserAuth(SBase):
