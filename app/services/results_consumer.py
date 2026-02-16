@@ -67,6 +67,13 @@ class ResultsConsumer:
                 logger.info(f"[ResultsConsumer] Получен результат для task_id={result.task_id}")
 
                 with session_maker() as session:
+                    # Валидация ID задачи
+                    try:
+                        request_id = int(result.task_id)
+                    except ValueError:
+                        logger.error(f"[ResultsConsumer] Некорректный task_id: {result.task_id}")
+                        return
+
                     # Проверяем, был ли запрос уже обработан
                     existing = session.execute(
                         select(MLRequest).where(MLRequest.id == request_id)
