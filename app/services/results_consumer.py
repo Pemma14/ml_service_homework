@@ -1,15 +1,16 @@
 import asyncio
 import json
 import logging
-from typing import Optional, Any
+from typing import Optional
 
 import aio_pika
+from sqlalchemy import select
 
 from app.config import settings
 from app.database.database import session_maker
+from app.models import MLRequest, MLRequestStatus
 from app.schemas.ml_task_schemas import MLResult
 from app.services.ml_service import MLRequestService
-from app.utils import MQServiceException
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +66,26 @@ class ResultsConsumer:
                 result = MLResult(**payload)
                 logger.info(f"[ResultsConsumer] Получен результат для task_id={result.task_id}")
 
-                # Обрабатываем результат в транзакции
                 with session_maker() as session:
+                    # Проверяем, был ли запрос уже обработан
+                    existing = session.execute(
+                        select(MLRequest).where(MLRequest.id == request_id)
+                    ).scalar_one_or_none()
+
+                    if not existing:
+                        logger.error(f"[ResultsConsumer] Запрос {request_id} не найден в базе")
+                        return
+
+                    if existing.status != MLRequestStatus.pending:
+                        logger.warning(f"[ResultsConsumer] Запрос {request_id} уже обработан (статус: {existing.status})")
+                        return
+
+                    # Обрабатываем результат
                     service = MLRequestService(session)
-                    # process_task_result — async с @transactional
                     await service.process_task_result(result)
 
             except Exception as e:
                 logger.error(f"[ResultsConsumer] Ошибка обработки сообщения: {e}")
-                # Исключение приведет к nack через message.process() и повторной доставке, если настроено
                 raise
 
     async def stop(self) -> None:

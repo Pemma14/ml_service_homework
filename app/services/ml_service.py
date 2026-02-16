@@ -159,11 +159,21 @@ class MLRequestService:
         """
         Обрабатывает результат выполнения задачи от воркера.
         """
+        request_id = int(result.task_id)
+        db_request = ml_crud.get_request_by_id(self.session, request_id)
+
+        if not db_request:
+            raise MLRequestNotFoundException
+
+        if db_request.status != MLRequestStatus.pending:
+            logger.warning(f"Запрос {request_id} уже обработан (статус: {db_request.status})")
+            return {"message": "Результат уже был обработан ранее"}
+
         status_enum = MLRequestStatus.success if result.status == "success" else MLRequestStatus.fail
         errors = [{"error": result.error}] if result.error else None
 
         self.update_request_result(
-            request_id=int(result.task_id),
+            request_id=request_id,
             status=status_enum,
             prediction=result.prediction,
             errors=errors
