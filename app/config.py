@@ -18,7 +18,7 @@ class AppSettings(BaseModel):
 
 
 class AuthSettings(BaseModel):
-    SECRET_KEY: str = "your_secret_key_here_make_it_long_and_secure"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     COOKIE_NAME: str = "ml_service_session"
@@ -95,17 +95,17 @@ class MQSettings(BaseModel):
 
 
 class SeedSettings(BaseModel):
-    ADMIN_EMAIL: str = "admin@example.org"
-    ADMIN_PASSWORD: str = "password"
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
     DEMO_EMAIL: str = "demo@example.org"
-    DEMO_PASSWORD: str = "password"
+    DEMO_PASSWORD: str
 
 
 class Settings(BaseSettings):
     app: AppSettings = AppSettings()
     db: DbSettings = DbSettings()
-    seed: SeedSettings = SeedSettings()
-    auth: AuthSettings = AuthSettings()
+    seed: SeedSettings
+    auth: AuthSettings
     mq: MQSettings = MQSettings()
     logging: LoggingSettings = LoggingSettings()
     cors: CORSSettings = CORSSettings()
