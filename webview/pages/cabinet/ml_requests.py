@@ -51,6 +51,7 @@ def confirm_ml_submission_dialog(api, to_send, send_mode, est_cost):
         if st.button("❌ Отмена", use_container_width=True, key="ml_cancel_btn_dialog"):
             st.session_state.show_ml_confirm = False
             st.rerun()
+    st.session_state.show_ml_confirm = False
 
 
 def render_ml_requests(api):
