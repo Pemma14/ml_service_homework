@@ -10,6 +10,7 @@ from app.schemas.ml_model_schemas import SMLModel
 
 
 class SMLFeatureItem(SBase):
+    patient_id: Optional[str] = Field(None, alias="№ Пациента", description="Уникальный номер пациента")
     age: float = Field(..., alias="Возраст", description="Возраст пациента", ge=0, le=150)
     vnn_pp: int = Field(0, alias="ВНН/ПП", description="ВНН/ПП", ge=0, le=1)
     clozapine: int = Field(0, alias="Клозапин", description="Клозапин", ge=0, le=1)
@@ -22,6 +23,7 @@ class SMLFeatureItem(SBase):
         "populate_by_name": True,
         "json_schema_extra": {
             "example": {
+                "№ Пациента": "П-12345",
                 "Возраст": 35.5,
                 "ВНН/ПП": 1,
                 "Клозапин": 0,

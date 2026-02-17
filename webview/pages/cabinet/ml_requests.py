@@ -95,7 +95,7 @@ def render_ml_requests(api):
     # Синхронизируем с глобальной настройкой или используем умный дефолт
     # Если глобально стоит "В очередь", а режим "Ручной ввод", мы все равно ставим "Прямой ответ" как более логичный,
     # но даем возможность пользователю сменить это в сайдбаре.
-    smart_default = "⚡ Прямой ответ (ожидание)" if mode == "📝 Ручной ввод" else "⏱️ В очередь (фоновый режим)"
+    smart_default = "⚡ Прямой ответ" if mode == "📝 Ручной ввод" else "⏱️Фоновый режим"
 
     # Если пользователь зашел в раздел первый раз за сессию или сменил режим ввода,
     # мы можем предложить умный дефолт, если он не менял настройки в сайдбаре.
@@ -115,7 +115,7 @@ def render_ml_requests(api):
         with st.expander("Шаблоны файлов для загрузки"):
             # CSV шаблон
             csv_header = ";".join(REQUIRED_ALIAS_ORDER)
-            csv_example_row = ";".join(["35", "1", "0", "0", "1", "0", "0"])
+            csv_example_row = ";".join(["", "35", "1", "0", "0", "1", "0", "0"])
             csv_content = f"{csv_header}\n{csv_example_row}\n".encode("utf-8-sig")
             st.download_button(
                 "⬇️ Скачать шаблон CSV",
@@ -127,6 +127,7 @@ def render_ml_requests(api):
             )
             # JSON шаблон
             json_obj = [{
+                "№ Пациента": None,
                 "Возраст": 35,
                 "ВНН/ПП": 1,
                 "Клозапин": 0,
@@ -253,18 +254,20 @@ def render_ml_requests(api):
 
             c1, c2 = st.columns(2)
             with c1:
+                patient_id = st.text_input("№ Пациента", key="patient_input", placeholder="например, П-101", help="Необязательное поле")
                 age_str = st.text_input("Возраст :red[*]", key="age_input", placeholder="например, 35")
+                vnn_pp_label = st.selectbox("ВНН/ПП", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="vnn_pp_label", help="Врождённые аномалии нервной системы или злоупотребление психоактивными веществами")
                 clozapine_label = st.selectbox("Клозапин", options=["-- Не выбрано --"] + list(CLOZAPINE_OPTIONS.keys()), key="clozapine_label")
-                cyp2c19_1_17_label = st.selectbox("CYP2C19 1/17", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2c19_1_17_label")
-                cyp2d6_1_3_label = st.selectbox("CYP2D6 1/3", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2d6_1_3_label")
 
             with c2:
-                vnn_pp_label = st.selectbox("ВНН/ПП", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="vnn_pp_label", help="Врождённые аномалии нервной системы или злоупотребление психоактивными веществами")
                 cyp2c19_1_2_label = st.selectbox("CYP2C19 1/2", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2c19_1_2_label")
+                cyp2c19_1_17_label = st.selectbox("CYP2C19 1/17", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2c19_1_17_label")
                 cyp2c19_17_17_label = st.selectbox("CYP2C19 *17/*17", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2c19_17_17_label")
+                cyp2d6_1_3_label = st.selectbox("CYP2D6 1/3", options=["-- Не выбрано --"] + list(BINARY_OPTIONS.keys()), key="cyp2d6_1_3_label")
 
             # Валидация
             filled = True
+
             age_val = None
             if age_str and age_str.strip():
                 try:
@@ -280,7 +283,7 @@ def render_ml_requests(api):
 
             if filled:
                 # Формируем запись, пропуская невыбранные поля (они будут заполнены значениями 'Нет' ниже)
-                row = {"Возраст": age_val}
+                row = {"№ Пациента": patient_id.strip() if patient_id else None, "Возраст": age_val}
                 if vnn_pp_label != "-- Не выбрано --": row["ВНН/ПП"] = BINARY_OPTIONS[vnn_pp_label]
                 if clozapine_label != "-- Не выбрано --": row["Клозапин"] = CLOZAPINE_OPTIONS[clozapine_label]
                 if cyp2c19_1_2_label != "-- Не выбрано --": row["CYP2C19 1/2"] = BINARY_OPTIONS[cyp2c19_1_2_label]
@@ -350,6 +353,7 @@ def render_ml_requests(api):
         )
 
     def clear_all_inputs():
+        st.session_state['patient_input'] = ''
         st.session_state['age_input'] = ''
         for _k in ['vnn_pp_label','clozapine_label','cyp2c19_1_2_label','cyp2c19_1_17_label','cyp2c19_17_17_label','cyp2d6_1_3_label']:
             st.session_state[_k] = '-- Не выбрано --'

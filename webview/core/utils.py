@@ -97,6 +97,13 @@ def validate_item(item: Dict[str, Any]) -> Tuple[bool, Dict[str, str], Dict[str,
     warnings: List[str] = []
     norm = to_alias_keys(item)
 
+    # № Пациента
+    p_id = norm.get("№ Пациента")
+    if p_id is not None and str(p_id).strip():
+        norm["№ Пациента"] = str(p_id)
+    else:
+        norm["№ Пациента"] = None
+
     # Возраст: MIN_AGE..MAX_AGE
     ok, num = coerce_number(norm.get("Возраст"))
     if not ok or num is None:
@@ -212,6 +219,7 @@ def create_excel_template() -> bytes:
     df = pd.DataFrame(columns=REQUIRED_ALIAS_ORDER)
     # Добавим одну строку-пример
     example_row = {
+        "№ Пациента": "П-101",
         "Возраст": 35,
         "ВНН/ПП": 1,
         "Клозапин": 0,
@@ -256,7 +264,13 @@ def prepare_results_df(input_data: List[Dict[str, Any]], prediction: Any, status
             # Одиночное предсказание для всех строк
             df["Результат"] = prediction
 
-    return df
+    # Упорядочиваем колонки: №пациента первым, Результат последним
+    cols = [c for c in REQUIRED_ALIAS_ORDER if c in df.columns]
+    cols += [c for c in df.columns if c not in cols and c != "Результат"]
+    if "Результат" in df.columns:
+        cols.append("Результат")
+
+    return df[cols]
 
 
 @st.cache_data
