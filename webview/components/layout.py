@@ -6,21 +6,21 @@ from webview.core.utils import is_valid_url
 #САЙДБАР
 def render_sidebar(api):
     # Навигация
-    if st.button(f"{ICONS['home']} Главная", use_container_width=True, key="sidebar_home"):
+    if st.button(f"{ICONS['home']} Главная", width='stretch', key="sidebar_home"):
         st.session_state.active_tab = "home"
         st.rerun()
 
     if st.session_state.get("token"):
-        if st.button(f"{ICONS['user']} Личный кабинет", use_container_width=True, key="sidebar_cabinet"):
+        if st.button(f"{ICONS['user']} Личный кабинет", width='stretch', key="sidebar_cabinet"):
             st.session_state.active_tab = "cabinet"
             st.rerun()
 
     if st.session_state.get("token"):
-        if st.button(f"{ICONS['settings']} Настройки", use_container_width=True, key="sidebar_settings"):
+        if st.button(f"{ICONS['settings']} Настройки", width='stretch', key="sidebar_settings"):
             st.session_state.active_tab = "settings"
             st.rerun()
 
-    if st.button(f"{ICONS['info']} Документация REST API", use_container_width=True):
+    if st.button(f"{ICONS['info']} Документация REST API", width='stretch'):
         st.session_state.active_tab = "api"
         st.rerun()
 
@@ -44,7 +44,7 @@ def render_sidebar(api):
         if st.session_state.balance is not None:
             st.markdown(f"**{ICONS['balance']} Баланс:** {st.session_state.balance} кредитов")
 
-        if st.button("🔄 Обновить данные", use_container_width=True, key="sidebar_refresh"):
+        if st.button("🔄 Обновить данные", width='stretch', key="sidebar_refresh"):
             with st.spinner("Обновление..."):
                 refresh_user_data(api)
             st.rerun()
@@ -80,7 +80,7 @@ def render_sidebar(api):
             key="sidebar_api_url"
         )
         st.caption(f"Текущий клиент: {api.base_url}")
-        if st.button("Применить API URL", use_container_width=True):
+        if st.button("Применить API URL", width='stretch'):
             if not is_valid_url(new_api_url):
                 st.error(f"{ICONS['error']} Некорректный формат URL. Используйте формат: http://example.com или https://example.com:8000")
             else:
@@ -91,7 +91,7 @@ def render_sidebar(api):
                 st.rerun()
 
         # Health check
-        if st.button("Проверить состояние API", use_container_width=True, key="sidebar_health_check"):
+        if st.button("Проверить состояние API", width='stretch', key="sidebar_health_check"):
             try:
                 with st.spinner("Проверка состояния API..."):
                     health = api.health_check()
@@ -167,7 +167,7 @@ def render_header(api):
                     if st.session_state.balance is not None:
                         st.markdown(f"💰 **Баланс:** `{st.session_state.balance}` кр.")
                     st.markdown("---")
-                    if st.button("Выйти", use_container_width=True, key="header_logout"):
+                    if st.button("Выйти", width='stretch', key="header_logout"):
                         set_auth(None)
                         st.session_state.active_tab = "home"
                         st.rerun()

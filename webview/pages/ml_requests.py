@@ -37,18 +37,18 @@ def confirm_ml_submission_dialog(api, to_send, send_mode, est_cost):
                     val_text = str(v)
                 st.write(f"**{label.replace('*', r'\*')}:** {val_text}")
         else:
-            st.dataframe(to_send, use_container_width=True)
+            st.dataframe(to_send, width='stretch')
 
     st.warning("Это действие приведет к списанию средств с вашего баланса.")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("✅ Подтвердить и отправить", use_container_width=True, key="ml_confirm_btn_dialog"):
+        if st.button("✅ Подтвердить и отправить", width='stretch', key="ml_confirm_btn_dialog"):
             st.session_state.ml_confirmed = True
             st.session_state.show_ml_confirm = False
             st.rerun()
     with col2:
-        if st.button("❌ Отмена", use_container_width=True, key="ml_cancel_btn_dialog"):
+        if st.button("❌ Отмена", width='stretch', key="ml_cancel_btn_dialog"):
             st.session_state.show_ml_confirm = False
             st.rerun()
     st.session_state.show_ml_confirm = False
@@ -73,7 +73,7 @@ def render_ml_requests(api):
                         st.session_state.last_bg_task_id = result.get("request_id")
                         st.success(f"✅ {len(to_send)} строк успешно отправлены в очередь на обработку!")
                     else:
-                        result = api.send_task_rpc(to_send)
+                        result = api.predict(to_send)
                         st.success(f"⚡ Обработка {len(to_send)} строк завершена успешно!")
 
                 st.session_state.last_result = result
@@ -123,7 +123,7 @@ def render_ml_requests(api):
                 data=csv_content,
                 file_name="ml_request_template.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width='stretch',
                 key="download_csv_template"
             )
             # JSON шаблон
@@ -142,7 +142,7 @@ def render_ml_requests(api):
                 data=json.dumps(json_obj, ensure_ascii=False, indent=2).encode("utf-8"),
                 file_name="ml_request_template.json",
                 mime="application/json",
-                use_container_width=True,
+                width='stretch',
                 key="download_json_template"
             )
             # Excel шаблон
@@ -153,7 +153,7 @@ def render_ml_requests(api):
                     data=excel_content,
                     file_name="ml_request_template.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
+                    width='stretch',
                     key="download_excel_template"
                 )
             except Exception as e:
@@ -238,7 +238,7 @@ def render_ml_requests(api):
             batch = new_batch
 
         with st.expander("Предпросмотр данных после сопоставления"):
-            st.data_editor(batch, use_container_width=True, hide_index=True)
+            st.data_editor(batch, width='stretch', hide_index=True)
 
     # 3. Основной раздел ввода и отправки
     st.markdown("---")
@@ -347,7 +347,7 @@ def render_ml_requests(api):
 
         submitted = col_send.button(
             btn_label,
-            use_container_width=True,
+            width='stretch',
             type="primary",
             disabled=not to_send or not enough_balance or not confirmed_defaults,
             help=btn_help
@@ -364,7 +364,7 @@ def render_ml_requests(api):
             for _col in REQUIRED_ALIAS_ORDER: st.session_state[f'map_{_col}'] = '-- Не выбрано --'
         except Exception: pass
 
-    if col_clear.button("🧹 Очистить всё", use_container_width=True, help="Сбросить все поля и файлы", on_click=clear_all_inputs):
+    if col_clear.button("🧹 Очистить всё", width='stretch', help="Сбросить все поля и файлы", on_click=clear_all_inputs):
         st.rerun()
 
     # 4. Обработка отправки
@@ -384,7 +384,7 @@ def render_ml_requests(api):
                         st.session_state.last_bg_task_id = result.get("request_id")
                         st.success(f"✅ {len(to_send)} строк успешно отправлены в очередь на обработку!")
                     else:
-                        result = api.send_task_rpc(to_send)
+                        result = api.predict(to_send)
                         st.success(f"⚡ Обработка {len(to_send)} строк завершена успешно!")
 
                     st.session_state.last_result = result
@@ -419,7 +419,7 @@ def render_ml_requests(api):
                     data=results_df.to_csv(index=False, sep=';').encode("utf-8-sig"),
                     file_name=f"ml_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width='stretch',
                     key="download_full_csv"
                 )
 
@@ -431,7 +431,7 @@ def render_ml_requests(api):
                         data=excel_data,
                         file_name=f"ml_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
+                        width='stretch',
                         key="download_full_excel"
                     )
                 except Exception as e:
@@ -443,7 +443,7 @@ def render_ml_requests(api):
                     data=json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"),
                     file_name=f"ml_raw_res_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json",
-                    use_container_width=True,
+                    width='stretch',
                     key="download_raw_json"
                 )
         else:
@@ -497,7 +497,7 @@ def render_task_monitoring(api):
                 refresh_user_data(api)
 
                 # Кнопка для скрытия блока мониторинга
-                if st.button("Ок", use_container_width=True):
+                if st.button("Ок", width='stretch'):
                     st.rerun()
             else:
                 # Задача в процессе
