@@ -32,9 +32,6 @@ class MLTaskPublisher:
             return await connection.channel(publisher_confirms=True)
 
     async def ensure_infrastructure(self) -> None:
-        """
-        Гарантирует, что Exchange объявлен и привязан к очереди.
-        """
         if self._infrastructure_ready:
             return
 
@@ -173,10 +170,8 @@ class RPCPublisher:
         try:
             return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
-            await self.futures.pop(correlation_id, None)
-            raise MQServiceException(f"RPC call timed out after {timeout}s")
-        finally:
             self.futures.pop(correlation_id, None)
+            raise MQServiceException(f"RPC call timed out after {timeout}s")
 
     async def close(self) -> None:
         """
