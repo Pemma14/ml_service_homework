@@ -4,6 +4,8 @@ import asyncio
 from typing import Any, Optional
 
 import aio_pika
+from sqlalchemy import create_engine, text
+from datetime import datetime, timezone
 
 from ml_worker.config import settings
 from ml_worker.services.mltask_consumer import BaseWorker
@@ -22,6 +24,12 @@ class MLWorker(BaseWorker):
             worker_id=worker_id,
             queue_name=settings.mq.QUEUE_NAME,
             amqp_url=settings.mq.amqp_url
+        )
+        self.engine = create_engine(
+            settings.db.url,
+            pool_size=5,
+            max_overflow=10,
+            pool_pre_ping=True
         )
 
     async def process_message(self, message: aio_pika.IncomingMessage) -> None:
@@ -113,16 +121,36 @@ class MLWorker(BaseWorker):
         raise Exception(f"Failed to publish result for task {task_id} after {settings.worker.MAX_RETRIES} attempts")
 
     async def save_result_to_db(self, task_id: str, prediction: Optional[Any], status: str, error: Optional[str]) -> None:
-        import json
-        from sqlalchemy import create_engine, text
-        from datetime import datetime, timezone
+        """Сохранение результата напрямую в БД."""
         try:
-            engine = create_engine(settings.db.url)
-            with engine.connect() as conn:
-                query = text("UPDATE ml_request SET prediction = :p, status = :s, errors = :e, completed_at = :c WHERE id = :id")
-                e_val = json.dumps([{'error': error}]) if error else None
-                conn.execute(query, {'p': json.dumps(prediction), 's': status, 'e': e_val, 'c': datetime.now(timezone.utc), 'id': int(task_id)})
-                conn.commit()
+            # Валидация ID задачи
+            try:
+                request_id = int(task_id)
+            except ValueError:
+                logger.error(f"[{self.worker_id}] Некорректный ID задачи: {task_id}")
+                return
+
+            e_val = json.dumps([{'error': error}]) if error else None
+
+            with self.engine.begin() as conn:
+                query = text("""
+                    UPDATE ml_request
+                    SET prediction = :p, status = :s, errors = :e, completed_at = :c
+                    WHERE id = :id
+                """)
+                result = conn.execute(query, {
+                    'p': json.dumps(prediction),
+                    's': status,
+                    'e': e_val,
+                    'c': datetime.now(timezone.utc),
+                    'id': request_id
+                })
+
+                if result.rowcount == 0:
+                    logger.warning(f"[{self.worker_id}] Запись для задачи {request_id} не найдена в БД")
+                else:
+                    logger.info(f"[{self.worker_id}] Результат задачи {request_id} сохранен в БД")
+
         except Exception as e:
-            logger.error(f'Error saving to DB: {e}')
+            logger.error(f"[{self.worker_id}] Ошибка при сохранении в БД: {e}")
             raise
