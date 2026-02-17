@@ -66,16 +66,6 @@ async def send_task_rpc(
         rpc_client=rpc_client
     )
 
-    # Нормализация ключа: всегда возвращаем "prediction"
-    if isinstance(raw, dict):
-        if "prediction" in raw:
-            return raw
-        if "predictions" in raw:
-            raw["prediction"] = raw.pop("predictions")
-            return raw
-        # Если это словарь без ожидаемых ключей — оборачиваем как есть
-        return {"prediction": raw}
-
     # Если пришёл список или скаляр — тоже оборачиваем
     return {"prediction": raw}
 

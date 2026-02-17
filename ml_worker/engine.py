@@ -39,7 +39,7 @@ class MLEngine:
                 raise MLModelLoadException()
         return self._model
 
-    def predict(self, items: List[Any]) -> List[str]:
+    def predict(self, items: List[Any]) -> str:
         try:
             # Конвертируем объекты Pydantic в словари, если нужно
             data_to_predict = []
@@ -54,13 +54,10 @@ class MLEngine:
             logger.error(f"Ошибка во время выполнения инференса: {e}")
             raise MLInferenceException()
 
-    def _run_inference(self, items: List[Dict[str, Any]]) -> List[str]:
+    def _run_inference(self, items: List[Dict[str, Any]]) -> str:
         try:
             if self.model is None:
-                return [
-                    "выраженные побочные эффекты будут с вероятностью 0.15"
-                    for _ in items
-                ]
+                return "выраженные побочные эффекты будут с вероятностью 0.15"
 
             # Создаем DataFrame для сохранения правильного порядка и имен колонок
             features_order = settings.worker.FEATURES_ORDER
@@ -74,27 +71,26 @@ class MLEngine:
 
             df = df[features_order]
 
-            results = []
+            result = ""
             # Пробуем получить вероятности для оценки уверенности
             try:
                 probabilities = self.model.predict_proba(df)
                 for prob in probabilities:
-                    p0 = round(float(prob[0]), 2)
+                    # p0 = round(float(prob[0]), 2)
                     p1 = round(float(prob[1]), 2)
-                    results.append(
-                        f"выраженные побочные эффекты будут с вероятностью {p1}"
-                    )
+                    result = f"выраженные побочные эффекты будут с вероятностью {p1}"
+
             except (AttributeError, Exception) as e:
                 logger.warning(f"Модель не поддерживает predict_proba или произошла ошибка: {e}")
                 # Если модель не поддерживает predict_proba, используем просто predict
                 predictions = self.model.predict(df)
                 for pred in predictions:
                     if pred == 0:
-                        results.append("выраженных побочных ответов не будет")
+                        result = "выраженных побочных ответов не будет"
                     else:
-                        results.append("выраженные побочные эффекты будут")
+                        result = "выраженные побочные эффекты будут"
 
-            return results
+            return result
         except Exception as e:
             logger.error(f"Ошибка внутри _run_inference: {e}")
             raise MLInferenceException()
