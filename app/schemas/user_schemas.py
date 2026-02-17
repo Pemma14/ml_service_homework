@@ -40,7 +40,9 @@ class SUserUpdate(SBase):
 
 
 class SUserAdminUpdate(SUserUpdate):
-    balance: Optional[Decimal] = Field(None, ge=0, description="Баланс")
+    balance: Optional[Decimal] = Field(
+        None, ge=0, description="Баланс пользователя (устанавливается администратором)"
+    )
     role: Optional[UserRole] = Field(None, description="Роль пользователя")
 
 

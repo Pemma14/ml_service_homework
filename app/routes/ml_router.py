@@ -66,7 +66,9 @@ async def send_task_rpc(
         rpc_client=rpc_client
     )
 
-    # Если пришёл список или скаляр — тоже оборачиваем
+    # Совместимость: если воркер уже вернул обёртку, не заворачиваем повторно
+    if isinstance(raw, dict) and "prediction" in raw:
+        return raw
     return {"prediction": raw}
 
 @router.post("/results", summary="Сохранить результат", description="Для воркеров")
