@@ -33,8 +33,8 @@ class RPCWorker(BaseWorker):
 
                 predictions = ml_engine.predict(payload)
 
-                response_obj = {"predictions": predictions}
-                body = json.dumps(response_obj).encode()
+                # response_obj = {"predictions": predictions}
+                body = json.dumps(predictions).encode()
 
                 await self._send_rpc_response(
                     body=body,
@@ -67,6 +67,7 @@ class RPCWorker(BaseWorker):
         ),
         reraise=True
     )
+
     async def _send_rpc_response(self, body: bytes, correlation_id: str, reply_to: str) -> None:
         """Вспомогательный метод для отправки ответа в RabbitMQ."""
         async with self.connection.channel() as channel:
