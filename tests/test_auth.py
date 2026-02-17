@@ -53,7 +53,7 @@ def test_register_duplicate_email(client, test_user):
     assert "уже существует" in data["message"]
 
 
-def test_login_invalid_password(client, test_user):e
+def test_login_invalid_password(client, test_user):
     login_data = {"email": test_user.email, "password": "wrong_password"}
     response = client.post("/api/v1/users/login", json=login_data)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED

@@ -78,6 +78,7 @@ class MLWorker(BaseWorker):
         ),
         reraise=True
     )
+
     async def publish_result_to_mq(
         self,
         task_id: str,
