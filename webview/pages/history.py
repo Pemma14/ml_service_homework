@@ -52,7 +52,7 @@ def render_history(api):
                         if input_data:
                             results_df = prepare_results_df(input_data, prediction)
                             with st.expander(f"📥 Экспорт данных запроса"):
-                                st.dataframe(results_df, use_container_width=True, hide_index=True)
+                                st.dataframe(results_df, width='stretch', hide_index=True)
                                 ec1, ec2 = st.columns(2)
                                 with ec1:
                                     st.download_button(
@@ -60,7 +60,7 @@ def render_history(api):
                                         data=results_df.to_csv(index=False, sep=';').encode("utf-8-sig"),
                                         file_name=f"ml_request_{rid}.csv",
                                         mime="text/csv",
-                                        use_container_width=True,
+                                        width='stretch',
                                         key=f"dl_csv_{rid}"
                                     )
                                 with ec2:
@@ -71,7 +71,7 @@ def render_history(api):
                                             data=excel_data,
                                             file_name=f"ml_request_{rid}.xlsx",
                                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                            use_container_width=True,
+                                            width='stretch',
                                             key=f"dl_excel_{rid}"
                                         )
                                     except Exception as ex:
@@ -88,7 +88,7 @@ def render_history(api):
                 end_idx = start_idx + page_size
 
                 df = requests_to_df(requests[start_idx:end_idx])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width='stretch', hide_index=True)
                 st.caption(f"Показано: {start_idx + 1}-{min(end_idx, len(requests))} из {len(requests)}")
             else:
                 st.info("История пуста")
@@ -110,7 +110,7 @@ def render_history(api):
                 end_idx = start_idx + page_size
 
                 df = transactions_to_df(transactions[start_idx:end_idx])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width='stretch', hide_index=True)
                 st.caption(f"Показано: {start_idx + 1}-{min(end_idx, len(transactions))} из {len(transactions)}")
             else:
                 st.info("История пуста")

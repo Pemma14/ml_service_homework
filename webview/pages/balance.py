@@ -12,13 +12,13 @@ def confirm_replenishment_dialog(api, amount):
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("✅ Подтвердить", use_container_width=True, key="balance_confirm_btn_dialog"):
+        if st.button("✅ Подтвердить", width='stretch', key="balance_confirm_btn_dialog"):
             st.session_state.balance_confirmed = True
             st.session_state.show_balance_confirm = False
             st.session_state.balance_amount = amount
             st.rerun()
     with col2:
-        if st.button("❌ Отмена", use_container_width=True, key="balance_cancel_btn_dialog"):
+        if st.button("❌ Отмена", width='stretch', key="balance_cancel_btn_dialog"):
             st.session_state.show_balance_confirm = False
             st.rerun()
 
@@ -69,7 +69,7 @@ def render_balance(api):
                 format="%.0f",
                 help="Укажите сумму для пополнения"
             )
-            submitted = st.form_submit_button("Пополнить", use_container_width=True)
+            submitted = st.form_submit_button("Пополнить", width='stretch')
 
         if submitted:
             if amount <= 0:

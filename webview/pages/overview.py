@@ -12,7 +12,7 @@ def render_overview(api):
         if requests:
             # Показываем 10 последних для информативности
             df = requests_to_df(requests[:10])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
             st.caption("Полная история доступна на соответствующей вкладке")
         else:
             st.info("История запросов пуста. Сделайте свой первый запрос во вкладке 'Предсказание'!")

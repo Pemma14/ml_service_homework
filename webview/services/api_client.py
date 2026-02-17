@@ -79,6 +79,14 @@ class APIClient:
         self._handle_error(resp)
         return resp.json()
 
+    def patch(self, path: str, payload: dict) -> dict:
+        url = self.base_url + path
+        logger.debug(f"API PATCH Request: {url}", payload=payload)
+        resp = requests.patch(url, json=payload, headers=self._headers(), timeout=API_TIMEOUT)
+        logger.debug(f"API PATCH Response: {resp.status_code}")
+        self._handle_error(resp)
+        return resp.json()
+
     # === Auth endpoints ===
     def login(self, email: str, password: str) -> dict:
         """Авторизация пользователя."""
@@ -134,23 +142,34 @@ class APIClient:
     # === Admin endpoints ===
     def get_all_users(self) -> list:
         """Получает список всех пользователей (только для админа)."""
-        return self.get("/api/v1/users/all")
+        return self.get("/api/v1/admin/users")
 
-    def update_user_balance(self, user_id: int, amount: float) -> dict:
-        """Обновляет баланс пользователя (только для админа)."""
-        return self.post(f"/api/v1/balance/admin/replenish/{user_id}", {"amount": amount})
+    def update_user_data(self, user_id: int, data: dict) -> dict:
+        """Обновляет данные пользователя (имя, фамилию, номер телефона и роль)."""
+        return self.patch(f"/api/v1/admin/users/{user_id}", data)
 
     def get_all_transactions(self) -> list:
         """Получает список всех транзакций в системе (только для админа)."""
-        return self.get("/api/v1/balance/admin/all")
+        return self.get("/api/v1/admin/transactions")
 
+    def get_user_ml_requests(self, user_id: int) -> list:
+        """Получает историю ML-запросов конкретного пользователя (только для админа)."""
+        return self.get(f"/api/v1/admin/users/{user_id}/ml-requests")
+
+    def get_user_transactions(self, user_id: int) -> list:
+        """Получает историю транзакций конкретного пользователя (только для админа)."""
+        return self.get(f"/api/v1/admin/users/{user_id}/transactions")
     def approve_transaction(self, transaction_id: int) -> dict:
         """Одобряет транзакцию (только для админа)."""
-        return self.post(f"/api/v1/balance/admin/approve/{transaction_id}", {})
+        return self.post(f"/api/v1/admin/transactions/approve/{transaction_id}", {})
 
     def reject_transaction(self, transaction_id: int) -> dict:
         """Отклоняет транзакцию (только для админа)."""
-        return self.post(f"/api/v1/balance/admin/reject/{transaction_id}", {})
+        return self.post(f"/api/v1/admin/transactions/reject/{transaction_id}", {})
+
+    def update_user_balance(self, user_id: int, amount: float) -> dict:
+        """Обновляет баланс пользователя (только для админа)."""
+        return self.post(f"/api/v1/admin/transactions/replenish/{user_id}", {"amount": amount})
 
     # === Health check ===
     def health_check(self) -> dict:

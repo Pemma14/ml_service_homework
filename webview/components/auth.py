@@ -10,7 +10,7 @@ def show_auth_dialog(api, on_success=lambda: None):
             email = st.text_input("Email", placeholder="user@example.com")
             password = st.text_input("Пароль", type="password")
 
-            if st.form_submit_button("Войти", use_container_width=True):
+            if st.form_submit_button("Войти", width='stretch'):
                 try:
                     data = api.login(email, password)
                     set_auth(data.get("access_token"))
@@ -30,7 +30,7 @@ def show_auth_dialog(api, on_success=lambda: None):
             r_pwd1 = st.text_input("Пароль", type="password")
             r_pwd2 = st.text_input("Повторите пароль", type="password")
 
-            if st.form_submit_button("Зарегистрироваться", use_container_width=True):
+            if st.form_submit_button("Зарегистрироваться", width='stretch'):
                 if r_pwd1 != r_pwd2:
                     st.error("Пароли не совпадают!")
                 else:
