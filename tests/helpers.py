@@ -4,6 +4,7 @@ from decimal import Decimal
 TEST_MODEL_COST = Decimal("10.0")
 DEFAULT_REPLENISH_AMOUNT = 100.0
 VALID_FEATURE_DATA = {
+    "patient_id": "TEST-PATIENT",
     "age": 30,
     "vnn_pp": 1,
     "clozapine": 0,

@@ -12,6 +12,7 @@ router = Router()
 
 # Состояния для формы заполнения данных
 class PredictForm(StatesGroup):
+    patient_id = State()
     age = State()
     vnn_pp = State()
     clozapine = State()
@@ -37,7 +38,16 @@ async def cmd_start(message: types.Message):
 
 @router.message(Command("predict"))
 async def cmd_predict(message: types.Message, state: FSMContext):
-    await message.answer("Шаг 1/7: Введите возраст пациента (число):")
+    await message.answer("Шаг 1/8: Введите номер пациента (или отправьте '-', чтобы пропустить):")
+    await state.set_state(PredictForm.patient_id)
+
+@router.message(PredictForm.patient_id)
+async def process_patient_id(message: types.Message, state: FSMContext):
+    p_id = message.text
+    if p_id == "-":
+        p_id = None
+    await state.update_data(patient_id=p_id)
+    await message.answer("Шаг 2/8: Введите возраст пациента (число):")
     await state.set_state(PredictForm.age)
 
 @router.message(PredictForm.age)
@@ -45,7 +55,7 @@ async def process_age(message: types.Message, state: FSMContext):
     try:
         age = float(message.text.replace(",", "."))
         await state.update_data(age=age)
-        await message.answer("Шаг 2/7: ВНН/ПП (выберите 0 или 1):", reply_markup=get_binary_keyboard())
+        await message.answer("Шаг 3/8: ВНН/ПП (выберите 0 или 1):", reply_markup=get_binary_keyboard())
         await state.set_state(PredictForm.vnn_pp)
     except ValueError:
         await message.answer("Пожалуйста, введите корректное число для возраста.")
@@ -55,7 +65,7 @@ async def process_vnn(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
         return await message.answer("Пожалуйста, используйте кнопки 0 или 1.")
     await state.update_data(vnn_pp=int(message.text))
-    await message.answer("Шаг 3/7: Клозапин (выберите 0 или 1):", reply_markup=get_binary_keyboard())
+    await message.answer("Шаг 4/8: Клозапин (выберите 0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.clozapine)
 
 @router.message(PredictForm.clozapine)
@@ -63,7 +73,7 @@ async def process_clozapine(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
         return await message.answer("Пожалуйста, используйте кнопки 0 или 1.")
     await state.update_data(clozapine=int(message.text))
-    await message.answer("Шаг 4/7: Генетический маркер CYP2C19 1/2 (0 или 1):", reply_markup=get_binary_keyboard())
+    await message.answer("Шаг 5/8: Генетический маркер CYP2C19 1/2 (0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.cyp2c19_1_2)
 
 @router.message(PredictForm.cyp2c19_1_2)
@@ -71,7 +81,7 @@ async def process_cyp1(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
         return await message.answer("Пожалуйста, используйте кнопки 0 или 1.")
     await state.update_data(cyp2c19_1_2=int(message.text))
-    await message.answer("Шаг 5/7: Генетический маркер CYP2C19 1/17 (0 или 1):", reply_markup=get_binary_keyboard())
+    await message.answer("Шаг 6/8: Генетический маркер CYP2C19 1/17 (0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.cyp2c19_1_17)
 
 @router.message(PredictForm.cyp2c19_1_17)
@@ -79,7 +89,7 @@ async def process_cyp2(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
         return await message.answer("Пожалуйста, используйте кнопки 0 или 1.")
     await state.update_data(cyp2c19_1_17=int(message.text))
-    await message.answer("Шаг 6/7: Генетический маркер CYP2C19 *17/*17 (0 или 1):", reply_markup=get_binary_keyboard())
+    await message.answer("Шаг 7/8: Генетический маркер CYP2C19 *17/*17 (0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.cyp2c19_17_17)
 
 @router.message(PredictForm.cyp2c19_17_17)
@@ -87,7 +97,7 @@ async def process_cyp3(message: types.Message, state: FSMContext):
     if message.text not in ["0", "1"]:
         return await message.answer("Пожалуйста, используйте кнопки 0 или 1.")
     await state.update_data(cyp2c19_17_17=int(message.text))
-    await message.answer("Шаг 7/7: Генетический маркер CYP2D6 1/3 (0 или 1):", reply_markup=get_binary_keyboard())
+    await message.answer("Шаг 8/8: Генетический маркер CYP2D6 1/3 (0 или 1):", reply_markup=get_binary_keyboard())
     await state.set_state(PredictForm.cyp2d6_1_3)
 
 async def get_bot_token():
@@ -130,6 +140,7 @@ async def process_final(message: types.Message, state: FSMContext):
         # 2. Подготавливаем данные для API
         payload = {
             "data": [{
+                "№ Пациента": data.get('patient_id'),
                 "Возраст": data['age'],
                 "ВНН/ПП": data['vnn_pp'],
                 "Клозапин": data['clozapine'],
