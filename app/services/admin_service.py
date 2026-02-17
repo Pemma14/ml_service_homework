@@ -69,3 +69,6 @@ class AdminService:
         update_data = user_update.model_dump(exclude_unset=True)
         user_crud.update(self.session, user, update_data)
         return user
+
+    def get_user_transactions(self, user_id: int) -> List[Transaction]:
+        return billing_crud.get_by_user_id(self.session, user_id)

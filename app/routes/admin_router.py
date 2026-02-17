@@ -2,10 +2,11 @@ from typing import List
 from fastapi import APIRouter, Depends
 
 from app.models import User
-from app.routes.dependencies import get_current_admin_user, get_admin_service
+from app.routes.dependencies import get_current_admin_user, get_admin_service, get_ml_request_service
 from app.schemas.user_schemas import SUser, SUserAdminUpdate
 from app.schemas.transaction_schemas import STransaction, STransactionCreate
-from app.services import AdminService
+from app.schemas.ml_request_schemas import SMLRequestHistory
+from app.services import AdminService, MLRequestService
 
 router = APIRouter()
 
@@ -86,3 +87,29 @@ async def reject_transaction(
     admin_service: AdminService = Depends(get_admin_service)
 ) -> STransaction:
     return admin_service.reject_transaction(transaction_id)
+
+@router.get(
+    "/users/{user_id}/ml-requests",
+    response_model=List[SMLRequestHistory],
+    summary="История ML-запросов пользователя (Админ)",
+    description="Возвращает историю ML-запросов выбранного пользователя. Только для администраторов.",
+)
+async def get_user_ml_requests(
+    user_id: int,
+    admin_user: User = Depends(get_current_admin_user),
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> List[SMLRequestHistory]:
+    return ml_service.get_all_history(user_id)
+
+@router.get(
+    "/users/{user_id}/transactions",
+    response_model=List[STransaction],
+    summary="Транзакции пользователя (Админ)",
+    description="Возвращает историю транзакций выбранного пользователя. Только для администраторов.",
+)
+async def get_user_transactions(
+    user_id: int,
+    admin_user: User = Depends(get_current_admin_user),
+    admin_service: AdminService = Depends(get_admin_service)
+) -> List[STransaction]:
+    return admin_service.get_user_transactions(user_id)
