@@ -13,6 +13,8 @@ from ml_worker.schemas.tasks import MLTask
 from ml_worker.schemas.results import MLResult
 from ml_worker.engine import ml_engine
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 logger = logging.getLogger("MLWorker")
 
 class MLWorker(BaseWorker):
@@ -68,6 +70,14 @@ class MLWorker(BaseWorker):
             else:
                 await self.publish_result_to_mq(task.task_id, prediction, status, error_msg)
 
+    @retry(
+        stop=stop_after_attempt(settings.worker.MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        before_sleep=lambda retry_state: logger.info(
+            f"Ретрай публикации (попытка {retry_state.attempt_number}) после ошибки: {retry_state.outcome.exception()}"
+        ),
+        reraise=True
+    )
     async def publish_result_to_mq(
         self,
         task_id: str,
@@ -86,39 +96,30 @@ class MLWorker(BaseWorker):
 
         payload = json.dumps(result.model_dump()).encode()
 
-        for attempt in range(1, settings.worker.MAX_RETRIES + 1):
-            try:
-                logger.info(f"[{self.worker_id}] Публикация результата для {task_id} в MQ (попытка {attempt})...")
-                # Используем существующее соединение
-                async with self.connection.channel() as channel:
-                    await channel.set_qos(prefetch_count=settings.worker.PREFETCH_COUNT)
-                    exchange = await channel.declare_exchange(
-                        settings.mq.RESULTS_EXCHANGE_NAME,
-                        type=aio_pika.ExchangeType.DIRECT,
-                        durable=True,
-                    )
-                    # Убедимся, что очередь существует и привязана
-                    queue = await channel.declare_queue(
-                        settings.mq.RESULTS_QUEUE_NAME,
-                        durable=True,
-                    )
-                    await queue.bind(exchange, routing_key=settings.mq.RESULTS_ROUTING_KEY)
+        logger.info(f"[{self.worker_id}] Публикация результата для {task_id} в MQ...")
+        # Используем существующее соединение
+        async with self.connection.channel() as channel:
+            await channel.set_qos(prefetch_count=settings.worker.PREFETCH_COUNT)
+            exchange = await channel.declare_exchange(
+                settings.mq.RESULTS_EXCHANGE_NAME,
+                type=aio_pika.ExchangeType.DIRECT,
+                durable=True,
+            )
+            # Убедимся, что очередь существует и привязана
+            queue = await channel.declare_queue(
+                settings.mq.RESULTS_QUEUE_NAME,
+                durable=True,
+            )
+            await queue.bind(exchange, routing_key=settings.mq.RESULTS_ROUTING_KEY)
 
-                    message = aio_pika.Message(
-                        body=payload,
-                        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                        content_type="application/json",
-                    )
-                    await exchange.publish(message, routing_key=settings.mq.RESULTS_ROUTING_KEY, mandatory=True)
+            message = aio_pika.Message(
+                body=payload,
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                content_type="application/json",
+            )
+            await exchange.publish(message, routing_key=settings.mq.RESULTS_ROUTING_KEY, mandatory=True)
 
-                logger.info(f"[{self.worker_id}] Результат для {task_id} опубликован в MQ.")
-                return
-            except Exception as e:
-                logger.error(f"[{self.worker_id}] Ошибка публикации результата в MQ (попытка {attempt}): {e}")
-                if attempt < settings.worker.MAX_RETRIES:
-                    await asyncio.sleep(settings.worker.RETRY_DELAY)
-
-        raise Exception(f"Failed to publish result for task {task_id} after {settings.worker.MAX_RETRIES} attempts")
+        logger.info(f"[{self.worker_id}] Результат для {task_id} опубликован в MQ.")
 
     async def save_result_to_db(self, task_id: str, prediction: Optional[Any], status: str, error: Optional[str]) -> None:
         """Сохранение результата напрямую в БД."""
