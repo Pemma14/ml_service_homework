@@ -1,3 +1,4 @@
+import logging
 from typing import List, Dict, Any
 
 from fastapi import APIRouter, Depends, status
@@ -13,9 +14,12 @@ from app.schemas.ml_request_schemas import (
 )
 from app.services import MLRequestService
 from app.services.mltask_client import MLTaskPublisher, RPCPublisher, get_mq_service, get_rpc_client
-from app.utils import MLRequestNotFoundException
+from app.utils import MLRequestNotFoundException, setup_logging
 
 router = APIRouter()
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 @router.post(
     "/send_task",

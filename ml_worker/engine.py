@@ -22,7 +22,7 @@ class MLEngine:
 
     def __init__(self):
         self._model = None
-        self.model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "model.pkl")
+        self.model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ml_worker/model.pkl")
 
     @property
     def model(self):
