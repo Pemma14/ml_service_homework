@@ -20,6 +20,10 @@ def render_sidebar(api):
             st.session_state.active_tab = "settings"
             st.rerun()
 
+    if st.button(f"{ICONS['info']} Документация REST API", use_container_width=True):
+        st.session_state.active_tab = "api"
+        st.rerun()
+
     # Профиль пользователя
     if st.session_state.get("token"):
         st.markdown("---")
@@ -68,11 +72,7 @@ def render_sidebar(api):
 
     # Технические настройки
     with st.sidebar.expander(f"{ICONS['admin']} Технические настройки", expanded=False):
-        if st.button(f"{ICONS['info']} Документация REST API", use_container_width=True):
-            st.session_state.active_tab = "api"
-            st.rerun()
 
-        st.markdown("---")
         new_api_url = st.text_input(
             "API URL",
             value=st.session_state.api_url,

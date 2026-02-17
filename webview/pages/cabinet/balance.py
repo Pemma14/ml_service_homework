@@ -1,7 +1,9 @@
 import streamlit as st
+
 from webview.core.config import ICONS
 from webview.core.styles import COLORS
 from webview.services.state import refresh_user_data, handle_api_error
+
 
 @st.dialog("💳 Подтверждение пополнения")
 def confirm_replenishment_dialog(api, amount):
@@ -21,7 +23,7 @@ def confirm_replenishment_dialog(api, amount):
             st.rerun()
 
 def render_balance(api):
-    # 0. Обработка подтвержденного пополнения
+    # Обработка подтвержденного пополнения
     if st.session_state.get("balance_confirmed"):
         st.session_state.balance_confirmed = False
         amount = st.session_state.get("balance_amount", 0)
@@ -30,6 +32,7 @@ def render_balance(api):
             with st.spinner("Пополнение..."):
                 api.replenish_balance(amount)
             st.success(f"{ICONS['success']} Баланс успешно пополнен!")
+            st.session_state.last_input = 0
             refresh_user_data(api)
             st.rerun()
         except Exception as e:
@@ -56,7 +59,7 @@ def render_balance(api):
 
     with col2:
         st.markdown("### 💳 Пополнить баланс")
-        with st.form("replenish_form"):
+        with st.form("replenish_form", clear_on_submit=True):
             amount = st.number_input(
                 "Сумма пополнения",
                 min_value=0.0,
@@ -72,21 +75,6 @@ def render_balance(api):
             if amount <= 0:
                 st.error("Сумма пополнения должна быть больше 0")
             else:
-                if st.session_state.use_confirmations:
-                    st.session_state.show_balance_confirm = True
-                    st.session_state.balance_amount = amount
-                    st.rerun()
-                else:
-                    try:
-                        with st.spinner("Пополнение..."):
-                            api.replenish_balance(amount)
-                        st.success(f"{ICONS['success']} Баланс успешно пополнен!")
-                        with st.spinner("Обновление данных..."):
-                            refresh_user_data(api)
-                        st.rerun()
-                    except Exception as e:
-                        handle_api_error(e)
-
-    # Показываем диалог подтверждения в конце, если флаг установлен
-    if st.session_state.get("show_balance_confirm"):
-        confirm_replenishment_dialog(api, st.session_state.balance_amount)
+                st.session_state.last_input = amount
+                # Открываем диалог только при нажатии кнопки и корректной сумме
+                confirm_replenishment_dialog(api, amount)
