@@ -1,6 +1,7 @@
 import json
 import logging
 import aio_pika
+from tenacity import retry, stop_after_attempt, wait_exponential
 from ml_worker.services.mltask_consumer import BaseWorker
 from ml_worker.engine import ml_engine
 from ml_worker.config import settings
@@ -58,6 +59,14 @@ class RPCWorker(BaseWorker):
                     )
                     raise send_err from e
 
+    @retry(
+        stop=stop_after_attempt(settings.worker.MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        before_sleep=lambda retry_state: logger.info(
+            f"Ретрай отправки RPC ответа (попытка {retry_state.attempt_number}) после ошибки: {retry_state.outcome.exception()}"
+        ),
+        reraise=True
+    )
     async def _send_rpc_response(self, body: bytes, correlation_id: str, reply_to: str) -> None:
         """Вспомогательный метод для отправки ответа в RabbitMQ."""
         async with self.connection.channel() as channel:
