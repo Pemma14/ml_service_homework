@@ -2,7 +2,8 @@ import logging
 import aio_pika
 import asyncio
 import uuid
-from typing import Optional, Dict
+from time import time
+from typing import Optional, Dict, Tuple
 from tenacity import retry, stop_after_attempt, wait_exponential
 from fastapi import Request
 from aio_pika.pool import Pool
@@ -15,9 +16,6 @@ logger = logging.getLogger(__name__)
 class MLTaskPublisher:
     """
     Клиент для взаимодействия с RabbitMQ.
-    - Использует пулы соединений и каналов
-    - Объявляет Exchange и Queue
-    - Использует настраиваемые ретраи
     """
     def __init__(self, connection_pool: Pool[aio_pika.RobustConnection]) -> None:
         self.connection_pool = connection_pool
@@ -110,10 +108,11 @@ class MLTaskPublisher:
 class RPCPublisher:
     def __init__(self, connection_pool: Pool[aio_pika.RobustConnection]) -> None:
         self.connection_pool = connection_pool
-        self.futures: Dict[str, asyncio.Future] = {}
+        self.futures: Dict[str, Tuple[asyncio.Future, float]] = {}
         self._callback_queue: Optional[aio_pika.abc.AbstractRobustQueue] = None
         self._channel: Optional[aio_pika.RobustChannel] = None
         self._loop = asyncio.get_event_loop()
+        self._cleanup_task: Optional[asyncio.Task] = None
 
     async def _get_channel(self) -> aio_pika.RobustChannel:
         async with self.connection_pool.acquire() as connection:
@@ -135,6 +134,29 @@ class RPCPublisher:
             await self._callback_queue.consume(self.on_response, no_ack=True)
             logger.info(f"RPC Client ready, callback queue: {self._callback_queue.name}")
 
+        # Запускаем задачу очистки устаревших фьючерсов
+        if not self._cleanup_task or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_stale_futures())
+
+    async def _cleanup_stale_futures(self) -> None:
+        """Удаляет фьючерсы старше 5 минут каждую минуту."""
+        while True:
+            try:
+                await asyncio.sleep(60)
+                now = time()
+                stale_ids = [
+                    cid for cid, (_, ts) in self.futures.items()
+                    if now - ts > 300
+                ]
+                for cid in stale_ids:
+                    logger.warning(f"Удаление устаревшей RPC future: {cid}")
+                    self.futures.pop(cid, None)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Ошибка в задаче очистки RPC фьючерсов: {e}")
+                await asyncio.sleep(10)
+
     async def on_response(self, message: aio_pika.abc.AbstractIncomingMessage) -> None:
         """
         Обработчик ответов из callback очереди.
@@ -143,9 +165,11 @@ class RPCPublisher:
             logger.warning(f"Получено сообщение без correlation_id: {message!r}")
             return
 
-        future = self.futures.pop(message.correlation_id, None)
-        if future:
-            future.set_result(message.body)
+        item = self.futures.pop(message.correlation_id, None)
+        if item:
+            future, _ = item
+            if not future.done():
+                future.set_result(message.body)
 
     async def call(self, payload: bytes, routing_key: str, timeout: float = 10.0) -> bytes:
         """
@@ -155,28 +179,38 @@ class RPCPublisher:
 
         correlation_id = str(uuid.uuid4())
         future = self._loop.create_future()
-        self.futures[correlation_id] = future
-
-        await self._channel.default_exchange.publish(
-            aio_pika.Message(
-                payload,
-                content_type="application/json",
-                correlation_id=correlation_id,
-                reply_to=self._callback_queue.name,
-            ),
-            routing_key=routing_key,
-        )
+        self.futures[correlation_id] = (future, time())
 
         try:
+            await self._channel.default_exchange.publish(
+                aio_pika.Message(
+                    payload,
+                    content_type="application/json",
+                    correlation_id=correlation_id,
+                    reply_to=self._callback_queue.name,
+                ),
+                routing_key=routing_key,
+            )
+
             return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
-            self.futures.pop(correlation_id, None)
             raise MQServiceException(f"RPC call timed out after {timeout}s")
+        finally:
+            # Немедленно удаляем из словаря, чтобы избежать утечек
+            # Это сработает при успехе, таймауте и отмене
+            self.futures.pop(correlation_id, None)
 
     async def close(self) -> None:
         """
         Закрывает ресурсы клиента.
         """
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
         if self._channel:
             await self._channel.close()
 
