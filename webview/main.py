@@ -18,11 +18,11 @@ from webview.components.layout import render_sidebar, render_header
 
 # Импорт страниц
 from webview.pages.home import render_home
-from webview.pages.cabinet.overview import render_overview
-from webview.pages.cabinet.balance import render_balance
-from webview.pages.cabinet.ml_requests import render_ml_requests
-from webview.pages.cabinet.history import render_history
-from webview.pages.cabinet.feedback import render_feedback
+from webview.pages.overview import render_overview
+from webview.pages.balance import render_balance
+from webview.pages.ml_requests import render_ml_requests
+from webview.pages.history import render_history
+from webview.pages.feedback import render_feedback
 from webview.pages.admin import render_admin
 from webview.pages.api_docs import render_api_docs
 
