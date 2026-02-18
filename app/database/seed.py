@@ -102,7 +102,7 @@ def seed_db(session: Session):
                             "CYP2C19 *17/*17": 0,
                             "CYP2D6 1/3": 0
                         }],
-                        prediction=["выраженных побочных ответов не будет с вероятностью 0.85, выраженные побочные эффекты будут с вероятностью 0.15"],
+                        prediction=["выраженные побочные эффекты будут с вероятностью 0.15"],
                         cost=log_reg.cost,
                         status=MLRequestStatus.success,
                         completed_at=datetime.now(timezone.utc)
