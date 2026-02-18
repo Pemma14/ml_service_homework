@@ -124,12 +124,12 @@ class APIClient:
         """Отправляет задачу в очередь (асинхронно)."""
         return self.post("/api/v1/requests/send_task", {"data": data})
 
-    def send_task_rpc(self, data: list) -> dict:
+    def predict(self, data: list) -> dict:
         """Отправляет задачу через RPC (синхронно)."""
         # Динамический таймаут для RPC: базовые 20с + 0.3с на строку (чуть больше, чем в бэкенде)
         num_rows = len(data) if isinstance(data, list) else 1
         dynamic_timeout = max(30, 20 + int(num_rows * 0.3))
-        return self.post("/api/v1/requests/send_task_rpc", {"data": data}, timeout=dynamic_timeout)
+        return self.post("/api/v1/requests/predict", {"data": data}, timeout=dynamic_timeout)
 
     def get_request_history(self) -> list:
         """Получает историю ML-запросов."""

@@ -36,7 +36,7 @@ def create_ml_request(client, feature_data: dict = None):
     return client.post("/api/v1/requests/send_task", json={"data": [feature_data]})
 
 
-def create_ml_request_rpc(client, feature_data: dict = None):
+def create_ml_predict(client, feature_data: dict = None):
     if feature_data is None:
         feature_data = VALID_FEATURE_DATA
     return client.post("/api/v1/requests/predict", json={"data": [feature_data]})

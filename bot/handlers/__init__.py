@@ -161,7 +161,16 @@ async def process_final(message: types.Message, state: FSMContext):
                 timeout=10.0
             )
 
-            if response.status_code == 202:
+            if response.status_code == 200:
+                result = response.json()
+                if "prediction" in result:
+                    prediction = result["prediction"]
+                    if isinstance(prediction, list):
+                        prediction = prediction[0]
+                    await message.answer(f"✅ Предсказание готово:\n\n{prediction}")
+                else:
+                    await message.answer(f"✅ Задача выполнена: {result.get('message', 'Успешно')}")
+            elif response.status_code == 202:
                 result = response.json()
                 request_id = result.get("request_id")
                 await message.answer(
@@ -170,14 +179,6 @@ async def process_final(message: types.Message, state: FSMContext):
                     f"📊 Статус: {result.get('status')}\n\n"
                     f"Результат будет доступен в истории запросов через некоторое время."
                 )
-            elif response.status_code == 200:
-                # На случай, если API вернет 200 (обратная совместимость)
-                result = response.json()
-                if "predictions" in result:
-                    prediction = result["predictions"][0]
-                    await message.answer(f"Результат предсказания:\n\n{prediction}")
-                else:
-                    await message.answer(f"Задача принята: {result.get('message')}")
             else:
                 try:
                     error_detail = response.json().get("message", "Неизвестная ошибка")

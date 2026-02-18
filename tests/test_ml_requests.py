@@ -5,7 +5,7 @@ from tests.helpers import (
     replenish_user_balance,
     get_user_balance,
     create_ml_request,
-    create_ml_request_rpc,
+    create_ml_predict,
     TEST_MODEL_COST,
     DEFAULT_REPLENISH_AMOUNT
 )
@@ -21,9 +21,9 @@ def test_send_task_async_success(funded_client):
     assert data["status"] == "pending"
 
 
-def test_send_task_rpc_success(funded_client):
+def test_predict_success(funded_client):
     feature_data = get_valid_feature_data()
-    response = create_ml_request_rpc(funded_client, feature_data)
+    response = create_ml_predict(funded_client, feature_data)
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["prediction"] == "выраженные побочные эффекты будут с вероятностью 0.15"
 
@@ -81,9 +81,9 @@ def test_send_task_insufficient_funds(auth_client):
     assert "Недостаточно кредитов" in data["message"]
 
 
-def test_send_task_rpc_insufficient_funds(auth_client):
+def test_predict_insufficient_funds(auth_client):
     feature_data = get_valid_feature_data()
-    response = create_ml_request_rpc(auth_client, feature_data)
+    response = create_ml_predict(auth_client, feature_data)
     assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
     data = response.json()
     assert "message" in data
