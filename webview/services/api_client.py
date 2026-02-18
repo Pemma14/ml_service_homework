@@ -104,7 +104,11 @@ class APIClient:
 
     def get_me(self) -> dict:
         """Получает информацию о текущем пользователе."""
-        return self.get("/api/v1/users/me")
+        return self.get("/api/v1/users/read_me")
+
+    def update_me(self, data: dict) -> dict:
+        """Обновляет информацию о текущем пользователе."""
+        return self.patch("/api/v1/users/update_me", data)
 
     # === Balance endpoints ===
     def check_balance(self) -> dict:

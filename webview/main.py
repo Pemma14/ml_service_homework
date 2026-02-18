@@ -23,6 +23,7 @@ from webview.pages.balance import render_balance
 from webview.pages.ml_requests import render_ml_requests
 from webview.pages.history import render_history
 from webview.pages.feedback import render_feedback
+from webview.pages.settings import render_settings
 from webview.pages.admin import render_admin
 from webview.pages.api_docs import render_api_docs
 
@@ -52,7 +53,10 @@ render_header(api)
 # Модальное окно авторизации
 if st.session_state.get("show_auth_modal") and not st.session_state.get("token"):
     def on_login_success():
-        st.session_state.active_tab = "cabinet"
+        if is_admin():
+            st.session_state.active_tab = "admin"
+        else:
+            st.session_state.active_tab = "cabinet"
 
     show_auth_dialog(api, on_success=on_login_success)
 
@@ -80,18 +84,8 @@ elif active_tab == "cabinet":
             f"{ICONS['feedback']} Обратная связь"
         ]
 
-        # Если админ - добавляем админ-панель первой
-        if is_admin():
-            tabs_labels.insert(0, f"{ICONS['admin']} Админ-панель")
-
         sub_tabs = st.tabs(tabs_labels)
-
-        if is_admin():
-            admin_tab, info_tab, balance_tab, ml_tab, history_tab, feedback_tab = sub_tabs
-            with admin_tab:
-                render_admin(api)
-        else:
-            info_tab, balance_tab, ml_tab, history_tab, feedback_tab = sub_tabs
+        info_tab, balance_tab, ml_tab, history_tab, feedback_tab = sub_tabs
 
         with info_tab:
             render_overview(api)
@@ -104,7 +98,20 @@ elif active_tab == "cabinet":
         with feedback_tab:
             render_feedback(api)
 
-# 3. REST API
+# 3. Страница настроек
+elif active_tab == "settings":
+    render_settings(api)
+
+# 4. Админ-панель
+elif active_tab == "admin":
+    if is_admin():
+        render_admin(api)
+    else:
+        st.error("У вас нет прав для доступа к этой странице.")
+        st.session_state.active_tab = "home"
+        st.rerun()
+
+# 5. REST API
 elif active_tab == "api":
     render_api_docs(st.session_state.api_url)
 
