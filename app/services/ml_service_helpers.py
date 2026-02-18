@@ -56,8 +56,10 @@ def create_pending_request(
     if not model:
         raise MLModelNotFoundException
 
-    total_cost = settings.app.DEFAULT_REQUEST_COST
-    logger.info(f"Стоимость запроса: {total_cost}")
+    # todo: ??
+    num_items = len(input_data) if isinstance(input_data, list) else 1
+    total_cost = settings.app.DEFAULT_REQUEST_COST * num_items
+    logger.info(f"Создание запроса: {num_items} объектов. Итоговая стоимость: {total_cost}")
 
     billing_service.reserve_funds(user, total_cost)
 
