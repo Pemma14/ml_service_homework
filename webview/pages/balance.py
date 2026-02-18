@@ -32,7 +32,6 @@ def render_balance(api):
             with st.spinner("Пополнение..."):
                 api.replenish_balance(amount)
             st.success(f"{ICONS['success']} Баланс успешно пополнен!")
-            st.session_state.last_input = 0
             refresh_user_data(api)
             st.rerun()
         except Exception as e:
@@ -75,6 +74,5 @@ def render_balance(api):
             if amount <= 0:
                 st.error("Сумма пополнения должна быть больше 0")
             else:
-                st.session_state.last_input = amount
                 # Открываем диалог только при нажатии кнопки и корректной сумме
                 confirm_replenishment_dialog(api, amount)

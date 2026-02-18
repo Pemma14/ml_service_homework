@@ -182,7 +182,23 @@ def parse_uploaded_file(file_or_list) -> List[Dict[str, Any]]:
     if name.endswith(".csv"):
         text = content.decode("utf-8")
         f = io.StringIO(text)
-        reader = csv.DictReader(f)
+        try:
+            # Пытаемся автоматически определить разделитель
+            dialect = csv.Sniffer().sniff(text.splitlines()[0])
+            f.seek(0)
+            reader = csv.DictReader(f, dialect=dialect)
+        except Exception:
+            # Если не удалось, используем ';' (по шаблону) или ',' как запасной вариант
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=';')
+            # Если заголовки не распознались, попробуем с ','
+            first_row = next(reader, None)
+            if first_row and len(first_row) <= 1:
+                f.seek(0)
+                reader = csv.DictReader(f, delimiter=',')
+            else:
+                f.seek(0)
+                reader = csv.DictReader(f, delimiter=';')
         return list(reader)
 
     if name.endswith((".xlsx", ".xls")):
@@ -254,11 +270,23 @@ def prepare_results_df(input_data: List[Dict[str, Any]], prediction: Any, status
 
     # Пытаемся сопоставить предсказания строкам
     if prediction is not None:
+        # Пытаемся распарсить строку, если она похожа на JSON-список
+        if isinstance(prediction, str) and prediction.strip().startswith('['):
+            try:
+                parsed = json.loads(prediction)
+                if isinstance(parsed, list):
+                    prediction = parsed
+            except Exception:
+                pass
+
         if isinstance(prediction, list):
             if len(prediction) == len(df):
                 df["Результат"] = prediction
+            elif len(prediction) == 1:
+                # Если пришел список из 1 элемента, а в df больше строк, размножаем
+                df["Результат"] = prediction[0]
             else:
-                # Если список, но длина не совпадает, превращаем в строку
+                # Если список, но длина не совпадает и не 1, превращаем в строку
                 df["Результат"] = str(prediction)
         else:
             # Одиночное предсказание для всех строк
@@ -288,10 +316,25 @@ def show_prediction_result(res: Any) -> None:
         if isinstance(res, dict):
             pred = res.get("prediction")
             if pred is not None:
+                # Пытаемся распарсить строку, если она похожа на JSON-список
+                if isinstance(pred, str) and pred.strip().startswith('['):
+                    try:
+                        parsed = json.loads(pred)
+                        if isinstance(parsed, list):
+                            pred = parsed
+                    except Exception:
+                        pass
+
                 if isinstance(pred, list):
-                    st.markdown("**Предсказания:**")
-                    for i, v in enumerate(pred, 1):
-                        st.write(f"• Объект {i}: `{v}`")
+                    if not pred:
+                        st.info("Результаты отсутствуют")
+                    elif len(pred) == 1:
+                        # Распакованное предсказание (просто строка)
+                        st.write(pred[0])
+                    else:
+                        st.markdown("**Предсказания для объектов:**")
+                        for i, v in enumerate(pred, 1):
+                            st.markdown(f"**Объект {i}:** {v}")
                 else:
                     st.write(pred)
 
@@ -308,9 +351,14 @@ def show_prediction_result(res: Any) -> None:
                 for line in meta_lines:
                     st.markdown(line)
         elif isinstance(res, list):
-            st.markdown("**Предсказания:**")
-            for i, v in enumerate(res, 1):
-                st.write(f"• Объект {i}: `{v}`")
+            if not res:
+                st.info("Результаты отсутствуют")
+            elif len(res) == 1:
+                st.write(res[0])
+            else:
+                st.markdown("**Предсказания для объектов:**")
+                for i, v in enumerate(res, 1):
+                    st.markdown(f"**Объект {i}:** {v}")
         else:
             st.info(res)
 
@@ -329,6 +377,26 @@ def requests_to_df(items: List[dict]) -> pd.DataFrame:
             lambda x: (x or {}).get("name") if isinstance(x, dict) else None
         )
 
+    # Распаковываем предсказание для таблицы
+    if "prediction" in df.columns:
+        def unpack_prediction(p):
+            if not p: return ""
+            # Если это строка, похожая на JSON-список, пробуем распарсить
+            if isinstance(p, str) and p.strip().startswith('['):
+                try:
+                    p = json.loads(p)
+                except: pass
+
+            if isinstance(p, list):
+                if not p: return ""
+                if len(p) == 1:
+                    return str(p[0])
+                # Если их несколько, объединяем
+                return "; ".join(map(str, p))
+            return str(p)
+
+        df["prediction"] = df["prediction"].apply(unpack_prediction)
+
     # Читаемая дата
     if "created_at" in df.columns:
         df["created_at"] = pd.to_datetime(df["created_at"]).dt.strftime("%Y-%m-%d %H:%M")
@@ -342,7 +410,7 @@ def requests_to_df(items: List[dict]) -> pd.DataFrame:
         "id", "created_at", "status_label", "cost", "model_name", "prediction"
     ] if c in df.columns]
 
-    return df[cols].rename(columns={
+    ready = df[cols].rename(columns={
         "id": "ID",
         "created_at": "Дата",
         "status_label": "Статус",
@@ -351,6 +419,14 @@ def requests_to_df(items: List[dict]) -> pd.DataFrame:
         "prediction": "Предсказание",
     })
 
+    ready.style.set_properties(
+        subset=["Предсказание"],
+        **{
+            "white-space": "pre-wrap",  # сохраняет переносы строк
+            "line-height": "1.2rem",  # опционально: чуть увеличить высоту строки
+        }
+    )
+    return ready
 
 @st.cache_data(show_spinner=False)
 def transactions_to_df(items: List[dict]) -> pd.DataFrame:

@@ -58,6 +58,12 @@ def render_ml_requests(api):
     if 'file_uploader_key' not in st.session_state:
         st.session_state['file_uploader_key'] = 0
 
+    just = st.session_state.pop("_just_finished_status", None)
+    if just == "success":
+        st.toast("✅ Задача успешно выполнена!")
+    elif just == "fail":
+        st.toast("❌ Ошибка при выполнении задачи.")
+
     # 0. Обработка подтвержденной отправки
     if st.session_state.get("ml_confirmed"):
         st.session_state.ml_confirmed = False
@@ -485,20 +491,11 @@ def render_task_monitoring(api):
                 # Очищаем ID фоновой задачи, так как она готова
                 del st.session_state.last_bg_task_id
 
-                if status == "success":
-                    st.success("✅ Задача успешно выполнена!")
-                else:
-                    st.error("❌ Ошибка при выполнении задачи.")
-
-                # Показываем результат
-                show_prediction_result(details)
-
                 # Обновляем данные пользователя (баланс)
                 refresh_user_data(api)
 
-                # Кнопка для скрытия блока мониторинга
-                if st.button("Ок", width='stretch'):
-                    st.rerun()
+                st.session_state._just_finished_status = status
+                st.rerun()
             else:
                 # Задача в процессе
                 st.info(f"Статус задачи: {status_label(status)}")
@@ -513,9 +510,9 @@ def render_task_monitoring(api):
                 if st.button("🔄 Обновить сейчас", key="manual_refresh_task"):
                     st.rerun()
 
-                # Автоматическое обновление через 3 секунды
+                # Автоматическое обновление
                 import time
-                time.sleep(3)
+                time.sleep(5)
                 st.rerun()
 
         except Exception as e:
