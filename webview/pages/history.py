@@ -2,10 +2,7 @@ import streamlit as st
 from webview.core.config import ICONS
 from webview.core.utils import (
     requests_to_df,
-    transactions_to_df,
-    show_prediction_result,
-    prepare_results_df,
-    create_excel_download
+    transactions_to_df
 )
 from webview.services.state import handle_api_error
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
@@ -23,47 +20,6 @@ def render_history(api):
             with st.spinner("Загрузка истории запросов..."):
                 requests = api.get_request_history()
 
-            # Поиск по ID
-            request_id = st.text_input("ID запроса", key="history_id_input", help="Введите ID для просмотра деталей")
-            if st.button("Показать детали", key="history_details_btn") and request_id:
-                try:
-                    rid = int(request_id)
-                    details = api.get_request_details(rid)
-                    show_prediction_result(details)
-
-                    # Добавляем экспорт для конкретного запроса
-                    input_data = details.get("input_data", [])
-                    prediction = details.get("prediction")
-
-                    if input_data:
-                        results_df = prepare_results_df(input_data, prediction)
-                        with st.expander(f"📥 Экспорт данных запроса"):
-                            st.dataframe(results_df, width='stretch', hide_index=True)
-                            ec1, ec2 = st.columns(2)
-                            with ec1:
-                                st.download_button(
-                                    "📊 Скачать CSV",
-                                    data=results_df.to_csv(index=False, sep=';').encode("utf-8-sig"),
-                                    file_name=f"ml_request_{rid}.csv",
-                                    mime="text/csv",
-                                    width='stretch',
-                                    key=f"dl_csv_{rid}"
-                                )
-                            with ec2:
-                                try:
-                                    excel_data = create_excel_download(results_df, sheet_name=f"Request {rid}")
-                                    st.download_button(
-                                        "📗 Скачать Excel",
-                                        data=excel_data,
-                                        file_name=f"ml_request_{rid}.xlsx",
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                        width='stretch',
-                                        key=f"dl_excel_{rid}"
-                                    )
-                                except Exception as ex:
-                                    st.error(f"Ошибка Excel: {ex}")
-                except Exception as e:
-                    handle_api_error(e)
 
             # Таблица с пагинацией (AgGrid - встроенная)
             if requests:

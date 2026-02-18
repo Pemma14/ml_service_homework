@@ -142,4 +142,3 @@ class MLRequestService:
         if not db_request:
             raise MLRequestNotFoundException
         return db_request
-

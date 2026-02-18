@@ -6,7 +6,7 @@ from app.routes.dependencies import get_current_admin_user, get_admin_service, g
 from app.schemas.user_schemas import SUser, SUserAdminUpdate
 from app.schemas.transaction_schemas import STransaction, STransactionCreate
 from app.schemas.ml_request_schemas import SMLRequestHistory
-from app.services import AdminService, MLRequestService
+from app.services import AdminService, MLRequestService, admin_service
 
 router = APIRouter()
 
@@ -62,31 +62,6 @@ async def admin_replenish(
 ) -> STransaction:
     return admin_service.admin_replenish(user_id, transaction_data.amount)
 
-@router.post(
-    "/transactions/approve/{transaction_id}",
-    response_model=STransaction,
-    summary="Одобрение транзакции (Админ)",
-    description="Одобрение ожидающей транзакции на пополнение.",
-)
-async def approve_transaction(
-    transaction_id: int,
-    admin_user: User = Depends(get_current_admin_user),
-    admin_service: AdminService = Depends(get_admin_service)
-) -> STransaction:
-    return admin_service.approve_transaction(transaction_id)
-
-@router.post(
-    "/transactions/reject/{transaction_id}",
-    response_model=STransaction,
-    summary="Отклонение транзакции (Админ)",
-    description="Отклонение ожидающей транзакции на пополнение.",
-)
-async def reject_transaction(
-    transaction_id: int,
-    admin_user: User = Depends(get_current_admin_user),
-    admin_service: AdminService = Depends(get_admin_service)
-) -> STransaction:
-    return admin_service.reject_transaction(transaction_id)
 
 @router.get(
     "/users/{user_id}/ml-requests",
@@ -100,6 +75,18 @@ async def get_user_ml_requests(
     ml_service: MLRequestService = Depends(get_ml_request_service)
 ) -> List[SMLRequestHistory]:
     return ml_service.get_all_history(user_id)
+
+@router.get(
+    "/ml-requests",
+    response_model=List[SMLRequestHistory],
+    summary="Все ML-запросы системы (Админ)",
+    description="Возвращает список всех ML-запросов в системе. Только для администраторов.",
+)
+async def get_all_ml_requests(
+    admin_user: User = Depends(get_current_admin_user),
+    admin_service: AdminService = Depends(get_admin_service)
+) -> List[SMLRequestHistory]:
+    return admin_service.get_all_requests()
 
 @router.get(
     "/users/{user_id}/transactions",
