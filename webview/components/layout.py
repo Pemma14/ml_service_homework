@@ -20,6 +20,11 @@ def render_sidebar(api):
             st.session_state.active_tab = "settings"
             st.rerun()
 
+    if st.session_state.get("token") and is_admin():
+        if st.button(f"{ICONS['admin']} Админ-панель", width='stretch', key="sidebar_admin"):
+            st.session_state.active_tab = "admin"
+            st.rerun()
+
     if st.button(f"{ICONS['info']} Документация REST API", width='stretch'):
         st.session_state.active_tab = "api"
         st.rerun()

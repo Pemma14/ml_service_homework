@@ -56,20 +56,30 @@ async def logout_user():
     return {"message": "Вы успешно вышли из системы"}
 
 @router.get(
+    "/read_me",
+    response_model=SUser,
+    summary="Просмотр профиля (только чтение)",
+    description="Возвращает детальную информацию о текущем авторизованном пользователе на основе JWT-токена.",
+    response_description="Данные текущего пользователя",
+)
+@router.get(
     "/me",
     response_model=SUser,
-    summary="Профиль пользователя",
-    description="Возвращает детальную информацию о текущем авторизованном пользователе на основе JWT-токена.",
-    response_description="Данные текущего пользователя"
+    include_in_schema=False,
 )
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.patch(
+    "/update_me",
+    response_model=SUser,
+    summary="Обновление профиля (изменение данных)",
+    description="Позволяет текущему пользователю обновить свои данные: имя, фамилию или телефон.",
+)
+@router.patch(
     "/me",
     response_model=SUser,
-    summary="Обновление профиля",
-    description="Позволяет текущему пользователю обновить свои данные: имя, фамилию или телефон.",
+    include_in_schema=False,
 )
 async def update_me(
     user_update: SUserUpdate,

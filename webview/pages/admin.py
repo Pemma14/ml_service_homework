@@ -8,7 +8,7 @@ from webview.services.state import handle_api_error
 def render_admin(api):
     st.markdown(f"### {ICONS['admin']} Панель администратора")
 
-    admin_tabs = st.tabs(["👥 Пользователи", "⚖️ Модерация", "💰 Пополнение", "📊 Все транзакции"])
+    admin_tabs = st.tabs(["👥 Пользователи", "💰 Пополнение", "📊 Все транзакции"])
 
     # 1. ПОЛЬЗОВАТЕЛИ
     with admin_tabs[0]:
@@ -143,42 +143,8 @@ def render_admin(api):
         except Exception as e:
             handle_api_error(e)
 
-    # 2. МОДЕРАЦИЯ
+    # 2. ПОПОЛНЕНИЕ (Прямое)
     with admin_tabs[1]:
-        st.markdown("#### Ожидающие пополнения")
-        try:
-            with st.spinner("Загрузка транзакций..."):
-                all_tx = api.get_all_transactions()
-
-            pending_tx = [tx for tx in all_tx if str(tx.get("status", "")).lower() == "pending"]
-
-            if not pending_tx:
-                st.success("Нет транзакций, ожидающих модерации")
-            else:
-                for tx in pending_tx:
-                    with st.container(border=True):
-                        c1, c2, c3 = st.columns([2, 1, 1])
-                        with c1:
-                            st.markdown(f"**ID:** `{tx['id']}` | **User ID:** `{tx['user_id']}`")
-                            st.markdown(f"**Сумма:** `{tx['amount']}` кредитов")
-                            st.caption(f"Дата: {tx.get('created_at', '')}")
-
-                        with c2:
-                            if st.button("✅ Одобрить", key=f"appr_{tx['id']}", width='stretch'):
-                                api.approve_transaction(tx['id'])
-                                st.success(f"Транзакция {tx['id']} одобрена")
-                                st.rerun()
-
-                        with c3:
-                            if st.button("❌ Отклонить", key=f"rejl_{tx['id']}", width='stretch', type="secondary"):
-                                api.reject_transaction(tx['id'])
-                                st.warning(f"Транзакция {tx['id']} отклонена")
-                                st.rerun()
-        except Exception as e:
-            handle_api_error(e)
-
-    # 3. ПОПОЛНЕНИЕ (Прямое)
-    with admin_tabs[2]:
         st.markdown("#### Прямое пополнение баланса")
         st.info("Используйте это поле для ручной корректировки баланса пользователя (без создания запроса от пользователя).")
 
@@ -193,8 +159,8 @@ def render_admin(api):
                 except Exception as e:
                     handle_api_error(e)
 
-    # 4. ТРАНЗАКЦИИ
-    with admin_tabs[3]:
+    # 3. ТРАНЗАКЦИИ
+    with admin_tabs[2]:
         st.markdown("#### Все транзакции в системе")
         try:
             with st.spinner("Загрузка истории..."):
