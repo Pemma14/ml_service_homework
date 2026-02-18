@@ -39,10 +39,7 @@ class RPCWorker(BaseWorker):
                 logger.info(f"[{self.worker_id}] Получен RPC запрос (corr_id: {message.correlation_id})")
 
                 predictions = ml_engine.predict(payload)
-
-                # Если результат один, возвращаем строку, иначе список строк
-                if isinstance(predictions, list) and len(predictions) == 1:
-                    predictions = predictions[0]
+                logger.info(f"[{self.worker_id}] Получено {len(payload)} объектов, предсказано {len(predictions)}")
 
                 # response_obj = {"predictions": predictions}
                 body = json.dumps(predictions).encode()

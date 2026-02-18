@@ -45,15 +45,15 @@ class MLWorker(BaseWorker):
 
             # 1. Выполнение инференса
             try:
-                logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id}...")
+                logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id} с признаками {task.features}...")
                 if isinstance(task.features, list):
                     prediction = ml_engine.predict(task.features)
+                    num_items = len(task.features)
                 else:
                     prediction = ml_engine.predict([task.features])
+                    num_items = 1
 
-                # Если результат один, возвращаем строку, иначе список строк
-                if isinstance(prediction, list) and len(prediction) == 1:
-                    prediction = prediction[0]
+                # logger.info(f"[{self.worker_id}] Обработано {num_items} объектов. Результат: {len(prediction) if isinstance(prediction, list) else '1'} предсказаний")
             except Exception as e:
                 logger.error(f"[{self.worker_id}] Ошибка инференса для задачи {task.task_id}: {e}")
                 status = "fail"

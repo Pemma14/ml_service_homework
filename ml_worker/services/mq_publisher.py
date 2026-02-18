@@ -40,7 +40,7 @@ class MQResultPublisher:
 
         payload = json.dumps(result.model_dump()).encode()
 
-        logger.info(f"[{self.worker_id}] Публикация результата для {task_id} в MQ...")
+        logger.info(f"[{self.worker_id}] Публикация результата для {task_id} в MQ..., body {payload}")
         async with self.connection.channel() as channel:
             await channel.set_qos(prefetch_count=settings.worker.PREFETCH_COUNT)
             exchange = await channel.declare_exchange(
