@@ -14,9 +14,6 @@ from app.utils import MQServiceException
 logger = logging.getLogger(__name__)
 
 class MLTaskPublisher:
-    """
-    Клиент для взаимодействия с RabbitMQ.
-    """
     def __init__(self, connection_pool: Pool[aio_pika.RobustConnection]) -> None:
         self.connection_pool = connection_pool
         self.channel_pool: Pool[aio_pika.RobustChannel] = Pool(
@@ -34,7 +31,7 @@ class MLTaskPublisher:
             return
 
         async with self.channel_pool.acquire() as channel:
-            # Объявляем обменник (Exchange)
+            # Объявляем обменник
             exchange = await channel.declare_exchange(
                 settings.mq.EXCHANGE_NAME,
                 type=aio_pika.ExchangeType.DIRECT,
@@ -61,9 +58,6 @@ class MLTaskPublisher:
         reraise=True
     )
     async def _publish_with_retry(self, message: aio_pika.Message) -> None:
-        """
-        Внутренний метод для публикации с ретраями через пул каналов.
-        """
         async with self.channel_pool.acquire() as channel:
             exchange = await channel.get_exchange(settings.mq.EXCHANGE_NAME)
             await exchange.publish(
@@ -73,9 +67,6 @@ class MLTaskPublisher:
             )
 
     async def send_task(self, task: MLTask) -> None:
-        """
-        Отправляет ML задачу в RabbitMQ.
-        """
         try:
             await self.ensure_infrastructure()
 
@@ -93,16 +84,11 @@ class MLTaskPublisher:
             logger.info(f"Задача {task.task_id} успешно отправлена в RabbitMQ")
 
         except aio_pika.exceptions.AMQPError as e:
-            logger.error(f"Ошибка RabbitMQ при отправке задачи: {e}")
-            raise MQServiceException()
+            raise MQServiceException(request_id=task.task_id, original_exception=e)
         except Exception as e:
-            logger.error(f"Непредвиденная ошибка при отправке задачи в RabbitMQ: {e}")
-            raise MQServiceException()
+            raise MQServiceException(request_id=task.task_id, original_exception=e)
 
     async def close(self) -> None:
-        """
-        Закрывает пулы.
-        """
         await self.channel_pool.close()
 
 class RPCPublisher:
@@ -119,9 +105,6 @@ class RPCPublisher:
             return await connection.channel()
 
     async def ensure_ready(self) -> None:
-        """
-        Подготавливает канал и очередь для ответов.
-        """
         if self._channel and not self._channel.is_closed:
             return
 
@@ -158,9 +141,7 @@ class RPCPublisher:
                 await asyncio.sleep(10)
 
     async def on_response(self, message: aio_pika.abc.AbstractIncomingMessage) -> None:
-        """
-        Обработчик ответов из callback очереди.
-        """
+        """Обработчик ответов из callback очереди."""
         if message.correlation_id is None:
             logger.warning(f"Получено сообщение без correlation_id: {message!r}")
             return
@@ -172,9 +153,7 @@ class RPCPublisher:
                 future.set_result(message.body)
 
     async def call(self, payload: bytes, routing_key: str, timeout: float = 10.0) -> bytes:
-        """
-        Выполняет RPC запрос.
-        """
+        """Выполняет RPC запрос."""
         await self.ensure_ready()
 
         correlation_id = str(uuid.uuid4())
@@ -193,17 +172,12 @@ class RPCPublisher:
             )
 
             return await asyncio.wait_for(future, timeout=timeout)
-        except asyncio.TimeoutError:
-            raise MQServiceException(f"RPC call timed out after {timeout}s")
+        except asyncio.TimeoutError as e:
+            raise MQServiceException(original_exception=e)
         finally:
-            # Немедленно удаляем из словаря, чтобы избежать утечек
-            # Это сработает при успехе, таймауте и отмене
             self.futures.pop(correlation_id, None)
 
     async def close(self) -> None:
-        """
-        Закрывает ресурсы клиента.
-        """
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
@@ -215,18 +189,14 @@ class RPCPublisher:
             await self._channel.close()
 
 def get_mq_service(request: Request) -> MLTaskPublisher:
-    """
-    Зависимость для получения сервиса RabbitMQ из состояния приложения.
-    """
+    """Зависимость для получения сервиса RabbitMQ из состояния приложения."""
     mq_service = request.app.state.mq_service
     if mq_service is None:
         raise MQServiceException()
     return mq_service
 
 def get_rpc_client(request: Request) -> RPCPublisher:
-    """
-    Зависимость для получения RPC клиента из состояния приложения.
-    """
+    """Зависимость для получения RPC клиента из состояния приложения."""
     rpc_client = request.app.state.rpc_client
     if rpc_client is None:
         raise MQServiceException()

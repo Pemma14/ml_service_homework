@@ -4,7 +4,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database.database import get_session
-from app.services.mltask_client import MLTaskPublisher, get_mq_service
+from app.services.mq_publisher import MLTaskPublisher, get_mq_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)

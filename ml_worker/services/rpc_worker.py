@@ -2,7 +2,7 @@ import json
 import logging
 import aio_pika
 from tenacity import retry, stop_after_attempt, wait_exponential
-from ml_worker.services.mltask_consumer import BaseWorker
+from ml_worker.services.mq_consumer import BaseWorker
 from ml_worker.engine import ml_engine
 from ml_worker.config import settings
 
@@ -32,6 +32,10 @@ class RPCWorker(BaseWorker):
                 logger.info(f"[{self.worker_id}] Получен RPC запрос (corr_id: {message.correlation_id})")
 
                 predictions = ml_engine.predict(payload)
+
+                # Если результат один, возвращаем строку, иначе список строк
+                if isinstance(predictions, list) and len(predictions) == 1:
+                    predictions = predictions[0]
 
                 # response_obj = {"predictions": predictions}
                 body = json.dumps(predictions).encode()

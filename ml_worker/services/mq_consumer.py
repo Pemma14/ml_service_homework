@@ -19,14 +19,12 @@ class BaseWorker:
         self._stop_event = asyncio.Event()
 
     async def stop(self) -> None:
-        """Остановка воркера."""
         logger.info(f"[{self.worker_id}] Остановка воркера...")
         self._stop_event.set()
         if self.connection and not self.connection.is_closed:
             await self.connection.close()
 
     async def connect(self) -> None:
-        """Установка устойчивого соединения с RabbitMQ."""
         logger.info(f"[{self.worker_id}] Подключение к RabbitMQ...")
         while not self.connection or self.connection.is_closed:
             try:
@@ -41,7 +39,6 @@ class BaseWorker:
         raise NotImplementedError
 
     async def run(self) -> None:
-        """Запуск цикла прослушивания очереди."""
         await self.connect()
         async with self.connection:
             channel = await self.connection.channel()

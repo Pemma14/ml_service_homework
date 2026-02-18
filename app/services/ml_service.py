@@ -1,9 +1,6 @@
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -13,11 +10,16 @@ from app.models import (
     MLRequest,
     MLRequestStatus,
 )
-from app.schemas.ml_task_schemas import MLTask, MLResult
+from app.schemas.ml_task_schemas import MLResult
 from app.services.billing_service import BillingService
-from app.services.mltask_client import MLTaskPublisher, RPCPublisher
+from app.services.ml_service_helpers import (
+    prepare_input_data,
+    build_ml_task,
+    create_pending_request,
+    update_request_result
+)
+from app.services.mq_publisher import MLTaskPublisher, RPCPublisher
 from app.utils import (
-    MLModelNotFoundException,
     MLRequestNotFoundException,
     MQServiceException,
     transactional,
@@ -32,56 +34,7 @@ class MLRequestService:
         self.session = session
         self.billing_service = BillingService(session)
 
-    def _prepare_input_data(self, input_data: Any) -> Any:
-        if isinstance(input_data, list) and len(input_data) > 0 and isinstance(input_data[0], BaseModel):
-            return [item.model_dump(by_alias=True) for item in input_data]
-        return input_data
-
-    #Функция для создания запроса (выбор модели, резервирвоание кредитов, создание записи в БД)
-    def create_pending_request(
-        self,
-        user: User,
-        input_data: List[Dict[str, Any]]
-    ) -> MLRequest:
-        logger.info(f"Создание запроса для пользователя {user.id}")
-
-        model = ml_crud.get_active_model(self.session)
-        if not model:
-            raise MLModelNotFoundException
-
-        total_cost = settings.app.DEFAULT_REQUEST_COST
-        logger.info(f"Стоимость запроса: {total_cost}")
-
-        self.billing_service.reserve_funds(user, total_cost)
-
-        new_request = ml_crud.create_request_record(session=self.session, user_id=user.id, model_id=model.id,
-                                                    cost=total_cost, input_data=input_data,
-                                                    status=MLRequestStatus.pending)
-
-        self.billing_service.record_payment_audit(
-            user_id=user.id,
-            cost=total_cost,
-            description=f"Оплата ML-запроса №{new_request.id} (ожидание)",
-            ml_request_id=new_request.id
-        )
-
-        return new_request
-
-    #Функция для создания MLтаски из запроса
-    def _build_ml_task(self, db_request: MLRequest, features: Any, user_id: int) -> MLTask:
-        return MLTask(
-            task_id=str(db_request.id),
-            features=features,
-            model=db_request.ml_model.code_name,
-            user_id=user_id,
-        )
-
-    #Откатить запись в БД и резервирование кредитов в случае ошибки
-    def _handle_mq_error(self, request_id: int) -> None:
-        logger.error(f"Не удалось отправить задачу {request_id} в RabbitMQ")
-        self.session.rollback()
-        raise MQServiceException()
-
+    #Подготовка и отправка таски в RabbitMQ
     @transactional
     async def create_and_send_task(
         self,
@@ -89,19 +42,17 @@ class MLRequestService:
         input_data: Any,
         mq_service: MLTaskPublisher,
     ) -> MLRequest:
-        """
-        Полный цикл: создание запроса, формирование из него таски и отправка в MQ.
-        """
+
         # 1. Подготавливаем данные
-        prepared_data = self._prepare_input_data(input_data)
+        prepared_data = prepare_input_data(input_data)
 
         # 2. Создаём запрос
-        db_request = self.create_pending_request(user, prepared_data)
+        db_request = create_pending_request(self.session, self.billing_service, user, prepared_data)
 
-        # 3. Формируем MLтакску из запроса для MQ
-        task = self._build_ml_task(db_request, prepared_data, user.id)
+        # 3. Формируем MLтаску из запроса
+        task = build_ml_task(db_request, prepared_data, user.id)
 
-        # 4. Отправляем в очередь (теперь выбрасывает MQServiceException при ошибке)
+        # 4. Отправляем в очередь
         await mq_service.send_task(task)
 
         # 5. Оповещаем пользователя
@@ -111,6 +62,33 @@ class MLRequestService:
         db_request.message = "Запрос принят и находится в обработке"
         return db_request
 
+#Подготовка и возврат ответа клиенту из RabbitMQ
+    @transactional
+    async def process_and_post_result(self, result: MLResult) -> Dict[str, str]:
+        request_id = int(result.task_id)
+        db_request = ml_crud.get_request_by_id(self.session, request_id)
+
+        if not db_request:
+            raise MLRequestNotFoundException
+
+        if db_request.status != MLRequestStatus.pending:
+            logger.warning(f"Запрос {request_id} уже обработан (статус: {db_request.status})")
+            return {"message": "Результат уже был обработан ранее"}
+
+        status_enum = MLRequestStatus.success if result.status == "success" else MLRequestStatus.fail
+        errors = [{"error": result.error}] if result.error else None
+
+        update_request_result(
+            session=self.session,
+            billing_service=self.billing_service,
+            request_id=request_id,
+            status=status_enum,
+            prediction=result.prediction,
+            errors=errors
+        )
+        return {"message": "Результат успешно сохранен"}
+
+    #Выполнение rpc предсказания
     @transactional
     async def execute_rpc_predict(
         self,
@@ -120,11 +98,11 @@ class MLRequestService:
     ) -> Any:
         import json
         # 1. Подготавливаем данные
-        prepared_data = self._prepare_input_data(input_data)
+        prepared_data = prepare_input_data(input_data)
         num_rows = len(prepared_data) if isinstance(prepared_data, list) else 1
 
         # 2. Создаем запрос и резервируем средства
-        db_request = self.create_pending_request(user, prepared_data)
+        db_request = create_pending_request(self.session, self.billing_service, user, prepared_data)
         self.session.flush()
 
         # 3. Вычисляем динамический таймаут
@@ -142,106 +120,26 @@ class MLRequestService:
             prediction = json.loads(response_bytes)
 
             # 5. Обновляем результат (в той же транзакции)
-            self.update_request_result(
+            update_request_result(
+                session=self.session,
+                billing_service=self.billing_service,
                 request_id=db_request.id,
                 status=MLRequestStatus.success,
                 prediction=prediction
             )
             return prediction
-        except Exception as e:
-            logger.error(f"Ошибка RPC-вызова для запроса №{db_request.id}: {e}")
-            # При исключении @transactional сделает rollback,
-            # поэтому запись в БД не сохранится, и деньги вернутся (баланс в сессии откатится).
+        except MQServiceException as e:
+            e.request_id = str(db_request.id)
             raise e
-
-    @transactional
-    async def process_task_result(self, result: MLResult) -> Dict[str, str]:
-        """
-        Обрабатывает результат выполнения задачи от воркера.
-        """
-        request_id = int(result.task_id)
-        db_request = ml_crud.get_request_by_id(self.session, request_id)
-
-        if not db_request:
-            raise MLRequestNotFoundException
-
-        if db_request.status != MLRequestStatus.pending:
-            logger.warning(f"Запрос {request_id} уже обработан (статус: {db_request.status})")
-            return {"message": "Результат уже был обработан ранее"}
-
-        status_enum = MLRequestStatus.success if result.status == "success" else MLRequestStatus.fail
-        errors = [{"error": result.error}] if result.error else None
-
-        self.update_request_result(
-            request_id=request_id,
-            status=status_enum,
-            prediction=result.prediction,
-            errors=errors
-        )
-        return {"message": "Результат успешно сохранен"}
-
-    def update_request_result(self, request_id: int, status: MLRequestStatus, prediction: Any = None,
-                              errors: Any = None) -> MLRequest:
-
-        db_request = ml_crud.update_request(
-            self.session,
-            request_id,
-            status=status,
-            prediction=prediction,
-            errors=errors,
-            completed_at=datetime.now(timezone.utc)
-        )
-
-        if not db_request:
-            raise MLRequestNotFoundException
-
-        if status == MLRequestStatus.fail:
-            user = self.session.get(User, db_request.user_id)
-            if user:
-                self.billing_service.refund_funds(user, db_request.cost, reason=f"Ошибка выполнения запроса №{request_id}")
-
-        return db_request
+        except Exception as e:
+            raise e
 
     def get_all_history(self, user_id: int) -> List[MLRequest]:
         return ml_crud.get_history(self.session, user_id)
 
-    def get_history_by_id(self, request_id: int, user_id: int) -> Optional[MLRequest]:
-        return ml_crud.get_request_by_id(self.session, request_id, user_id)
+    def get_history_by_id(self, request_id: int, user_id: int) -> MLRequest:
+        db_request = ml_crud.get_request_by_id(self.session, request_id, user_id)
+        if not db_request:
+            raise MLRequestNotFoundException
+        return db_request
 
-    @transactional
-    def create_request_history(
-        self,
-        user: User,
-        model_id: int,
-        cost: Decimal,
-        input_data: List[Any],
-        predictions: Optional[List[Any]] = None,
-        errors: Optional[List[Any]] = None,
-        status: MLRequestStatus = MLRequestStatus.success,
-    ) -> MLRequest:
-        """
-        Создает запись в истории ML-запросов и соответствующую транзакцию оплаты.
-        """
-        # 1. Создаем запись в истории ML-запросов
-        new_request = ml_crud.create_request_record(
-            session=self.session,
-            user_id=user.id,
-            model_id=model_id,
-            cost=cost,
-            input_data=input_data,
-            status=status,
-        )
-        new_request.prediction = predictions or []
-        new_request.errors = errors or []
-        new_request.completed_at = datetime.now(timezone.utc)
-
-        # 2. Аудит платежа через биллинг-сервис
-        self.billing_service.record_payment_audit(
-            user_id=user.id,
-            cost=cost,
-            description=f"Оплата ML-запроса №{new_request.id}",
-            ml_request_id=new_request.id,
-        )
-
-        logger.info(f"Запрос №{new_request.id} сохранен в истории для пользователя {user.id}.")
-        return new_request

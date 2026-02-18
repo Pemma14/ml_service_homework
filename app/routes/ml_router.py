@@ -13,18 +13,19 @@ from app.schemas.ml_request_schemas import (
     SMLRequestHistory
 )
 from app.services import MLRequestService
-from app.services.mltask_client import MLTaskPublisher, RPCPublisher, get_mq_service, get_rpc_client
-from app.utils import MLRequestNotFoundException, setup_logging
+from app.services.mq_publisher import MLTaskPublisher, RPCPublisher, get_mq_service, get_rpc_client
+from app.utils import setup_logging
 
 router = APIRouter()
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+
 @router.post(
     "/send_task",
     response_model=SMLPredictionResponse,
-    summary="Выполнить предсказание",
+    summary="Отправить задачу в очередь на выполнение",
     description="Отправляет задачу в очередь RabbitMQ и возвращает информацию о запросе.",
     status_code=status.HTTP_202_ACCEPTED
 )
@@ -34,27 +35,35 @@ async def send_task(
     mq_service: MLTaskPublisher = Depends(get_mq_service),
     ml_service: MLRequestService = Depends(get_ml_request_service)
 ) -> Dict[str, Any]:
-    # Вызываем единый метод ml_request_service
     db_request = await ml_service.create_and_send_task(
         user=current_user,
         input_data=request.data,
         mq_service=mq_service
     )
-
-    # Возвращаем ответ пользователю
     return {
         "request_id": db_request.id,
         "status": db_request.status,
         "message": db_request.message
     }
 
+
+@router.post("/post_result",
+             summary="Передать и опубликовать результат",
+             description="Для task_worker: передаёт результаты выполненной задачи через RabbitMQ")
+async def post_result(
+    result: MLResult,
+    ml_service: MLRequestService = Depends(get_ml_request_service)
+) -> Dict[str, str]:
+    return await ml_service.process_and_post_result(result)
+
+
 @router.post(
-    "/send_task_rpc",
+    "/predict",
     summary="Выполнить предсказание (синхронно/RPC)",
     description="Отправляет запрос через RPC и ожидает результат немедленно.",
     status_code=status.HTTP_200_OK
 )
-async def send_task_rpc(
+async def predict(
     request: SMLPredictionRequest,
     current_user: User = Depends(get_current_user),
     rpc_client: RPCPublisher = Depends(get_rpc_client),
@@ -65,18 +74,8 @@ async def send_task_rpc(
         input_data=request.data,
         rpc_client=rpc_client
     )
-
-    # Совместимость: если воркер уже вернул обёртку, не заворачиваем повторно
-    if isinstance(raw, dict) and "prediction" in raw:
-        return raw
     return {"prediction": raw}
 
-@router.post("/results", summary="Сохранить результат", description="Для воркеров")
-async def send_task_result(
-    result: MLResult,
-    ml_service: MLRequestService = Depends(get_ml_request_service)
-) -> Dict[str, str]:
-    return await ml_service.process_task_result(result)
 
 @router.get(
     "/history",
@@ -91,6 +90,7 @@ async def get_history(
 ) -> List[SMLRequestHistory]:
     return ml_service.get_all_history(current_user.id)
 
+
 @router.get(
     "/history/{request_id}",
     response_model=SMLRequestHistory,
@@ -103,7 +103,4 @@ async def get_request_details(
     current_user: User = Depends(get_current_user),
     ml_service: MLRequestService = Depends(get_ml_request_service)
 ) -> SMLRequestHistory:
-    request = ml_service.get_history_by_id(request_id, current_user.id)
-    if not request:
-        raise MLRequestNotFoundException
-    return request
+    return ml_service.get_history_by_id(request_id, current_user.id)
