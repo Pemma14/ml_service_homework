@@ -11,7 +11,7 @@ def render_overview(api):
         requests = api.get_request_history()
         if requests:
             # Показываем 10 последних для информативности
-            df = requests_to_df(requests[:10])
+            df = requests_to_df(requests[:3])
             st.dataframe(df, width='stretch', hide_index=True)
             st.caption("Полная история доступна на соответствующей вкладке")
         else:
