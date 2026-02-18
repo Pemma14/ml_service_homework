@@ -156,6 +156,10 @@ class APIClient:
         """Получает список всех транзакций в системе (только для админа)."""
         return self.get("/api/v1/admin/transactions")
 
+    def get_all_ml_requests(self) -> list:
+        """Получает список всех ML-запросов в системе (только для админа)."""
+        return self.get("/api/v1/admin/ml-requests")
+
     def get_user_ml_requests(self, user_id: int) -> list:
         """Получает историю ML-запросов конкретного пользователя (только для админа)."""
         return self.get(f"/api/v1/admin/users/{user_id}/ml-requests")

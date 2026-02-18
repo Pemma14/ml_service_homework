@@ -68,4 +68,3 @@ def get_request_by_id(session: Session, request_id: int, user_id: Optional[int] 
         query = query.where(MLRequest.user_id == user_id)
     result = session.execute(query)
     return result.scalar_one_or_none()
-

@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 from app.models import UserRole
 from webview.core.config import ICONS
-from webview.core.utils import transactions_to_df
+from webview.core.utils import transactions_to_df, requests_to_df
 from webview.services.state import handle_api_error
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 
 def render_admin(api):
     st.markdown(f"### {ICONS['admin']} Панель администратора")
 
-    admin_tabs = st.tabs(["👥 Пользователи", "💰 Пополнение", "📊 Все транзакции"])
+    admin_tabs = st.tabs(["👥 Пользователи", "🤖 Все предсказания", "💰 Пополнение", "📊 Все транзакции"])
 
     # 1. ПОЛЬЗОВАТЕЛИ
     with admin_tabs[0]:
@@ -17,29 +18,50 @@ def render_admin(api):
             with st.spinner("Загрузка пользователей..."):
                 users = api.get_all_users()
             if users:
-                # Поиск
-                q = st.text_input("Поиск по Email или ID", placeholder="Введите email или ID")
-                filtered = users
-                if q:
-                    q_lower = str(q).strip().lower()
-                    def _match(u: dict) -> bool:
-                        email = str(u.get("email", "")).lower()
-                        uid = str(u.get("id", ""))
-                        return (q_lower in email) or (q_lower == uid) or (q_lower in uid)
-                    filtered = [u for u in users if _match(u)]
-
-                df = pd.DataFrame(filtered)
+                df = pd.DataFrame(users)
                 if not df.empty and "created_at" in df.columns:
                     df["created_at"] = pd.to_datetime(df["created_at"]).dt.strftime("%Y-%m-%d %H:%M")
 
                 display_cols = [c for c in ["id", "email", "first_name", "last_name", "balance", "role", "created_at"] if c in df.columns]
-                st.dataframe(df[display_cols] if not df.empty else df, width='stretch', hide_index=True)
-                st.caption(f"Пользователей: {len(filtered)} / всего {len(users)}")
+                df_display = df[display_cols] if not df.empty else df
+
+                page_size = st.session_state.get("page_size", 10)
+                gb = GridOptionsBuilder.from_dataframe(df_display)
+                gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+                # Узкие фиксированные колонки
+                if "id" in df_display.columns:
+                    gb.configure_column("id", header_name="ID", width=80, flex=0)
+                if "created_at" in df_display.columns:
+                    gb.configure_column("created_at", header_name="Дата", width=120, flex=0)
+                if "role" in df_display.columns:
+                    gb.configure_column("role", header_name="Роль", width=100, flex=0)
+                if "balance" in df_display.columns:
+                    gb.configure_column("balance", header_name="Баланс", width=110, flex=0)
+                # Остальные
+                if "email" in df_display.columns:
+                    gb.configure_column("email", header_name="Email", minWidth=200, flex=2, wrapText=True, autoHeight=True)
+                if "first_name" in df_display.columns:
+                    gb.configure_column("first_name", header_name="Имя", minWidth=120, flex=1)
+                if "last_name" in df_display.columns:
+                    gb.configure_column("last_name", header_name="Фамилия", minWidth=120, flex=1)
+
+                gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
+                gb.configure_grid_options(domLayout='autoHeight')
+                grid_options = gb.build()
+                AgGrid(
+                    df_display,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.MODEL_CHANGED,
+                    theme='streamlit',
+                    use_container_width=True,
+                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_ALL_COLUMNS_TO_VIEW
+                )
+                st.caption(f"Всего пользователей: {len(users)}")
 
                 # Выбор пользователя и детальная панель
                 selected_user = st.selectbox(
                     "Управление пользователем",
-                    options=[None] + filtered,
+                    options=[None] + users,
                     format_func=lambda u: f"{u.get('email', '')} (ID: {u.get('id')})" if u else "-- Выберите пользователя --",
                     index=0
                 )
@@ -105,7 +127,32 @@ def render_admin(api):
                                         hdf["status"] = hdf["status"].apply(_map_status)
 
                                     display = [c for c in ["id", "model_id", "cost", "status", "created_at"] if c in hdf.columns]
-                                    st.dataframe(hdf[display] if display else hdf, width='stretch', hide_index=True)
+                                    df_display = hdf[display] if display else hdf
+
+                                    page_size = st.session_state.get("page_size", 10)
+                                    gb = GridOptionsBuilder.from_dataframe(df_display)
+                                    gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+                                    if "id" in df_display.columns:
+                                        gb.configure_column("id", header_name="ID", width=80, flex=0)
+                                    if "created_at" in df_display.columns:
+                                        gb.configure_column("created_at", header_name="Дата", width=120, flex=0)
+                                    if "cost" in df_display.columns:
+                                        gb.configure_column("cost", header_name="Списание", width=100, flex=0)
+                                    if "model_id" in df_display.columns:
+                                        gb.configure_column("model_id", header_name="Модель", minWidth=120, flex=1)
+                                    if "status" in df_display.columns:
+                                        gb.configure_column("status", header_name="Статус", minWidth=120, flex=1)
+                                    gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
+                                    gb.configure_grid_options(domLayout='autoHeight')
+                                    grid_options = gb.build()
+                                    AgGrid(
+                                        df_display,
+                                        gridOptions=grid_options,
+                                        update_mode=GridUpdateMode.MODEL_CHANGED,
+                                        theme='streamlit',
+                                        use_container_width=True,
+                                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_ALL_COLUMNS_TO_VIEW
+                                    )
                                 else:
                                     st.info("История отсутствует")
                             except Exception as e:
@@ -119,7 +166,30 @@ def render_admin(api):
                                     user_tx = api.get_user_transactions(user_id)
                                 if user_tx:
                                     tx_df = transactions_to_df(user_tx)
-                                    st.dataframe(tx_df, width='stretch', hide_index=True)
+                                    page_size = st.session_state.get("page_size", 10)
+                                    gb = GridOptionsBuilder.from_dataframe(tx_df)
+                                    gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+                                    # Настройка колонок
+                                    for col, cfg in {
+                                        "ID": {"width": 80, "flex": 0},
+                                        "Дата": {"width": 120, "flex": 0},
+                                        "Статус": {"width": 120, "flex": 0},
+                                        "Тип": {"minWidth": 150, "flex": 1},
+                                        "Сумма": {"width": 100, "flex": 0},
+                                    }.items():
+                                        if col in tx_df.columns:
+                                            gb.configure_column(col, **cfg)
+                                    gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
+                                    gb.configure_grid_options(domLayout='autoHeight')
+                                    grid_options = gb.build()
+                                    AgGrid(
+                                        tx_df,
+                                        gridOptions=grid_options,
+                                        update_mode=GridUpdateMode.MODEL_CHANGED,
+                                        theme='streamlit',
+                                        use_container_width=True,
+                                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_ALL_COLUMNS_TO_VIEW
+                                    )
                                 else:
                                     st.info("Нет транзакций для пользователя")
 
@@ -143,8 +213,56 @@ def render_admin(api):
         except Exception as e:
             handle_api_error(e)
 
-    # 2. ПОПОЛНЕНИЕ (Прямое)
+    # 2. Все предсказания
     with admin_tabs[1]:
+        st.markdown("#### Все предсказания в системе")
+        try:
+            with st.spinner("Загрузка всех ML-запросов..."):
+                all_reqs = api.get_all_ml_requests()
+            if all_reqs:
+                hdf = requests_to_df(all_reqs)
+                # Добавим User ID в таблицу, так как это админ-панель
+                raw_df = pd.DataFrame(all_reqs)
+                if not raw_df.empty and "user_id" in raw_df.columns:
+                    hdf["Пользователь ID"] = raw_df["user_id"]
+
+                page_size = st.session_state.get("page_size", 10)
+                gb = GridOptionsBuilder.from_dataframe(hdf)
+                gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+                # Узкие колонки
+                for col, cfg in {
+                    "ID": {"width": 80, "flex": 0},
+                    "Дата": {"width": 120, "flex": 0},
+                    "Статус": {"width": 120, "flex": 0},
+                    "Списание": {"width": 100, "flex": 0},
+                    "Пользователь ID": {"width": 120, "flex": 0},
+                }.items():
+                    if col in hdf.columns:
+                        gb.configure_column(col, **cfg)
+                # Длинные колонки с переносом
+                if "Модель" in hdf.columns:
+                    gb.configure_column("Модель", minWidth=150, flex=1, wrapText=True, autoHeight=True)
+                if "Предсказание" in hdf.columns:
+                    gb.configure_column("Предсказание", minWidth=200, flex=2, wrapText=True, autoHeight=True)
+
+                gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
+                gb.configure_grid_options(domLayout='autoHeight')
+                grid_options = gb.build()
+                AgGrid(
+                    hdf,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.MODEL_CHANGED,
+                    theme='streamlit',
+                    use_container_width=True,
+                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_ALL_COLUMNS_TO_VIEW
+                )
+            else:
+                st.info("Предсказаний пока нет")
+        except Exception as e:
+            handle_api_error(e)
+
+    # 3. ПОПОЛНЕНИЕ (Прямое)
+    with admin_tabs[2]:
         st.markdown("#### Прямое пополнение баланса")
         st.info("Используйте это поле для ручной корректировки баланса пользователя (без создания запроса от пользователя).")
 
@@ -159,8 +277,8 @@ def render_admin(api):
                 except Exception as e:
                     handle_api_error(e)
 
-    # 3. ТРАНЗАКЦИИ
-    with admin_tabs[2]:
+    # 4. ТРАНЗАКЦИИ
+    with admin_tabs[3]:
         st.markdown("#### Все транзакции в системе")
         try:
             with st.spinner("Загрузка истории..."):
@@ -172,7 +290,32 @@ def render_admin(api):
                 if "user_id" in raw_df.columns:
                     df["Пользователь ID"] = raw_df["user_id"]
 
-                st.dataframe(df, width='stretch', hide_index=True)
+                page_size = st.session_state.get("page_size", 10)
+                gb = GridOptionsBuilder.from_dataframe(df)
+                gb.configure_default_column(filter=True, sortable=True, resizable=True, editable=False)
+                # Настройка колонок
+                for col, cfg in {
+                    "ID": {"width": 80, "flex": 0},
+                    "Дата": {"width": 120, "flex": 0},
+                    "Статус": {"width": 120, "flex": 0},
+                    "Тип": {"minWidth": 150, "flex": 1},
+                    "Сумма": {"width": 100, "flex": 0},
+                    "Пользователь ID": {"width": 120, "flex": 0},
+                }.items():
+                    if col in df.columns:
+                        gb.configure_column(col, **cfg)
+
+                gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
+                gb.configure_grid_options(domLayout='autoHeight')
+                grid_options = gb.build()
+                AgGrid(
+                    df,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.MODEL_CHANGED,
+                    theme='streamlit',
+                    use_container_width=True,
+                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_ALL_COLUMNS_TO_VIEW
+                )
             else:
                 st.info("Транзакций пока нет")
         except Exception as e:
