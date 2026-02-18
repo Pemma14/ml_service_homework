@@ -89,7 +89,7 @@ class ResultsConsumer:
 
                     # Обрабатываем результат
                     service = MLRequestService(session)
-                    await service.process_task_result(result)
+                    await service.process_and_post_result(result)
 
             except Exception as e:
                 logger.error(f"[ResultsConsumer] Ошибка обработки сообщения: {e}")

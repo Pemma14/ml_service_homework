@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 from datetime import datetime, timezone
 
 from ml_worker.config import settings
-from ml_worker.services.mltask_consumer import BaseWorker
+from ml_worker.services.mq_consumer import BaseWorker
 from ml_worker.schemas.tasks import MLTask
 from ml_worker.schemas.results import MLResult
 from ml_worker.engine import ml_engine
@@ -19,7 +19,7 @@ logger = logging.getLogger("MLWorker")
 
 class MLWorker(BaseWorker):
     """
-    Воркер для выполнения ML предсказаний.
+    Воркер для выполнения ML задач в фоновом режиме.
     """
     def __init__(self, worker_id: str):
         super().__init__(
@@ -49,15 +49,14 @@ class MLWorker(BaseWorker):
             # 1. Выполнение инференса
             try:
                 logger.info(f"[{self.worker_id}] Выполнение инференса для задачи {task.task_id}...")
-                # MLEngine.predict ожидает список объектов
                 if isinstance(task.features, list):
                     prediction = ml_engine.predict(task.features)
                 else:
                     prediction = ml_engine.predict([task.features])
 
-                # Приводим к списку результатов (даже если один элемент), чтобы API получал консистентный List[Any]
-                if prediction is not None and not isinstance(prediction, list):
-                    prediction = [prediction]
+                # Если результат один, возвращаем строку, иначе список строк
+                if isinstance(prediction, list) and len(prediction) == 1:
+                    prediction = prediction[0]
             except Exception as e:
                 logger.error(f"[{self.worker_id}] Ошибка инференса для задачи {task.task_id}: {e}")
                 status = "fail"

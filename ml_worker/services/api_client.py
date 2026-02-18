@@ -11,7 +11,7 @@ class ResultsApiClient:
     def __init__(self, base_url: str, timeout: float = 10.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.results_endpoint = f"{self.base_url}/api/v1/requests/results"
+        self.results_endpoint = f"{self.base_url}/api/v1/requests/post_result"
 
     async def post_result(self, payload: Dict[str, Any]) -> int:
         async with httpx.AsyncClient() as client:

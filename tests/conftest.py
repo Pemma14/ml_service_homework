@@ -76,7 +76,7 @@ def mock_rpc_client():
     from unittest.mock import AsyncMock
 
     mock_rpc = AsyncMock()
-    mock_rpc.call.return_value = b'{"prediction": [0.5]}'
+    mock_rpc.call.return_value = b'"\xd0\xb2\xd1\x8b\xd1\x80\xd0\xb0\xd0\xb6\xd0\xb5\xd0\xbd\xd0\xbd\xd1\x8b\xd0\xb5 \xd0\xbf\xd0\xbe\xd0\xb1\xd0\xbe\xd1\x87\xd0\xbd\xd1\x8b\xd0\xb5 \xd1\x8d\xd1\x84\xd1\x84\xd0\xb5\xd0\xba\xd1\x82\xd1\x8b \xd0\xb1\xd1\x83\xd0\xb4\xd1\x83\xd1\x82 \xd1\x81 \xd0\xb2\xd0\xb5\xd1\x80\xd0\xbe\xd1\x8f\xd1\x82\xd0\xbd\xd0\xbe\xd1\x81\xd1\x82\xd1\x8c\xd1\x8e 0.15"'
     return mock_rpc
 
 
@@ -86,7 +86,7 @@ def client(session, active_model, mock_mq_service, mock_rpc_client):
     def override_get_session():
         yield session
 
-    from app.services.mltask_client import get_mq_service, get_rpc_client
+    from app.services.mq_publisher import get_mq_service, get_rpc_client
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_mq_service] = lambda: mock_mq_service

@@ -82,9 +82,9 @@ class MQServiceException(AppException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     detail = "Сервис временно недоступен. Не удалось поставить задачу в очередь."
 
-    def __init__(self, detail: Optional[str] = None) -> None:
-        if detail:
-            self.detail = detail
+    def __init__(self, request_id: Optional[Any] = None, original_exception: Optional[Exception] = None) -> None:
+        self.request_id = request_id
+        self.original_exception = original_exception
         super().__init__()
 
 # Инфраструктурные ошибки

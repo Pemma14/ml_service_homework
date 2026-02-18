@@ -5,14 +5,23 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.utils.exceptions import AppException
+from app.utils.exceptions import AppException, MQServiceException
 
 logger = logging.getLogger(__name__)
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Обработчик кастомных исключений приложения."""
-    logger.warning(f"Ошибка приложения: {exc.detail}")
+    if isinstance(exc, MQServiceException):
+        msg = f"Ошибка RabbitMQ"
+        if exc.request_id:
+            msg += f" (задача {exc.request_id})"
+        if exc.original_exception:
+            msg += f": {exc.original_exception}"
+        logger.error(msg)
+    else:
+        logger.warning(f"Ошибка приложения: {exc.detail}")
+
     return JSONResponse(
         status_code=exc.status_code,
         content={"status": "error", "message": exc.detail}

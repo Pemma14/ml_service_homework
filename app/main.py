@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database.database import init_db
-from app.services.mltask_client import MLTaskPublisher, RPCPublisher
-from app.services.results_consumer import ResultsConsumer
+from app.services.mq_publisher import MLTaskPublisher, RPCPublisher
+from app.services.mq_consumer import ResultsConsumer
 from aio_pika.pool import Pool
 from app.routes.transaction_router import router as transaction_router
 from app.routes.ml_router import router as ml_router

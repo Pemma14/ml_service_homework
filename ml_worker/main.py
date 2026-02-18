@@ -3,7 +3,7 @@ import logging
 import os
 import signal
 import sys
-from ml_worker.services.ml_worker import MLWorker
+from ml_worker.services.task_worker import MLWorker
 from ml_worker.services.rpc_worker import RPCWorker
 
 # Настройка логирования

@@ -25,7 +25,7 @@ def test_send_task_rpc_success(funded_client):
     feature_data = get_valid_feature_data()
     response = create_ml_request_rpc(funded_client, feature_data)
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["prediction"] == [0.5]
+    assert response.json()["prediction"] == "выраженные побочные эффекты будут с вероятностью 0.15"
 
 def test_send_result_success(client, funded_client):
     feature_data = get_valid_feature_data()
@@ -34,15 +34,15 @@ def test_send_result_success(client, funded_client):
 
     result_data = {
         "task_id": str(request_id),
-        "prediction": [0.8],
+        "prediction": "выраженные побочные эффекты будут с вероятностью 0.15",
         "status": "success",
         "worker_id": "test-worker-01"
     }
-    response = client.post("/api/v1/requests/results", json=result_data)
+    response = client.post("/api/v1/requests/post_result", json=result_data)
     assert response.status_code == status.HTTP_200_OK
     resp_details = funded_client.get(f"/api/v1/requests/history/{request_id}")
     assert resp_details.json()["status"] == "success"
-    assert resp_details.json()["prediction"] == [0.8]
+    assert resp_details.json()["prediction"] == "выраженные побочные эффекты будут с вероятностью 0.15"
 
 def test_get_ml_history_empty(auth_client):
     """Получение пустой истории для нового пользователя."""
@@ -102,7 +102,7 @@ def test_send_result_not_found(client):
         "status": "success",
         "worker_id": "test-worker"
     }
-    response = client.post("/api/v1/requests/results", json=result_data)
+    response = client.post("/api/v1/requests/post_result", json=result_data)
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 def test_get_request_details_not_found(auth_client):
@@ -128,14 +128,14 @@ def test_send_result_fail_refund(client, funded_client):
         "error": "Model computation error",
         "worker_id": "test-worker-01"
     }
-    response = client.post("/api/v1/requests/results", json=result_data)
+    response = client.post("/api/v1/requests/post_result", json=result_data)
     assert response.status_code == status.HTTP_200_OK
     balance_after_refund = get_user_balance(funded_client)
     assert balance_after_refund == initial_balance
 
 @pytest.mark.parametrize("method,url,json_data", [
     ("POST", "/api/v1/requests/send_task", {"data": []}),
-    ("POST", "/api/v1/requests/send_task_rpc", {"data": []}),
+    ("POST", "/api/v1/requests/predict", {"data": []}),
     ("GET", "/api/v1/requests/history", None),
     ("GET", "/api/v1/requests/history/1", None),
 ])
