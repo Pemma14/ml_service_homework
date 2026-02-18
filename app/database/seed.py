@@ -20,7 +20,7 @@ def seed_db(session: Session):
 
     # 1. Сидирование ML-модели
     model_to_seed = {
-        "name": "Logistic Regression",
+        "name": "Default Random Forrest",
         "code_name": "log_reg",
         "description": "Классическая логистическая регрессия для бинарной классификации",
         "version": "1.0.0",
