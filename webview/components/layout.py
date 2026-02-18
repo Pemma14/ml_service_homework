@@ -24,51 +24,7 @@ def render_sidebar(api):
         st.session_state.active_tab = "api"
         st.rerun()
 
-    # Профиль пользователя
-    if st.session_state.get("token"):
-        st.markdown("---")
-        st.markdown(f"### {ICONS['user']} Профиль")
-
-        if st.session_state.me:
-            email = st.session_state.me.get("email", "")
-            first_name = st.session_state.me.get("first_name", "")
-            last_name = st.session_state.me.get("last_name", "")
-            full_name = f"{first_name} {last_name}".strip() or email
-
-            st.markdown(f"**Пользователь:** {full_name}")
-            st.caption(f"📧 {email}")
-
-            if is_admin():
-                st.success("👑 Администратор")
-
-        if st.session_state.balance is not None:
-            st.markdown(f"**{ICONS['balance']} Баланс:** {st.session_state.balance} кредитов")
-
-        if st.button("🔄 Обновить данные", width='stretch', key="sidebar_refresh"):
-            with st.spinner("Обновление..."):
-                refresh_user_data(api)
-            st.rerun()
-
-    # Настройки приложения
-    with st.sidebar.expander(f"{ICONS['settings']} Настройки интерфейса", expanded=False):
-        st.session_state.use_confirmations = st.toggle(
-            "Подтверждение операций",
-            value=st.session_state.use_confirmations,
-            help="Показывать окна подтверждения перед пополнением баланса или отправкой запросов"
-        )
-
-        st.session_state.send_mode = st.radio(
-            "Способ обработки ML",
-            ["⏱️ В очередь (фоновый режим)", "⚡ Прямой ответ (ожидание)"],
-            index=0 if st.session_state.send_mode.startswith("⏱️") else 1,
-            help="Глобальная настройка способа обработки запросов"
-        )
-
-        st.session_state.page_size = st.select_slider(
-            "Записей на страницу",
-            options=[5, 10, 20, 50],
-            value=st.session_state.page_size
-        )
+    st.markdown("---")
 
     # Технические настройки
     with st.sidebar.expander(f"{ICONS['admin']} Технические настройки", expanded=False):
@@ -106,6 +62,31 @@ def render_sidebar(api):
                 st.json(health)
             except Exception as e:
                 handle_api_error(e)
+
+    # Профиль пользователя
+    if st.session_state.get("token"):
+        st.markdown("---")
+        st.markdown(f"### {ICONS['user']} Профиль")
+
+        if st.session_state.me:
+            email = st.session_state.me.get("email", "")
+            first_name = st.session_state.me.get("first_name", "")
+            last_name = st.session_state.me.get("last_name", "")
+            full_name = f"{first_name} {last_name}".strip() or email
+
+            st.markdown(f"**Пользователь:** {full_name}")
+            st.caption(f"📧 {email}")
+
+            if is_admin():
+                st.success("👑 Администратор")
+
+        if st.session_state.balance is not None:
+            st.markdown(f"**{ICONS['balance']} Баланс:** {st.session_state.balance} кредитов")
+
+        if st.button("🔄 Обновить данные", width='stretch', key="sidebar_refresh"):
+            with st.spinner("Обновление..."):
+                refresh_user_data(api)
+            st.rerun()
 
 #ХЕДЕР
 def render_header(api):
