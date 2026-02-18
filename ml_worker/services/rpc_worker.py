@@ -1,8 +1,8 @@
 import json
 import logging
 import aio_pika
-from tenacity import retry, stop_after_attempt, wait_exponential
 from ml_worker.services.mq_consumer import BaseWorker
+from ml_worker.services.mq_publisher import MQResultPublisher
 from ml_worker.engine import ml_engine
 from ml_worker.config import settings
 
@@ -16,6 +16,13 @@ class RPCWorker(BaseWorker):
             queue_name=settings.mq.RPC_QUEUE_NAME,
             amqp_url=settings.mq.amqp_url
         )
+        self._publisher = None
+
+    @property
+    def publisher(self) -> MQResultPublisher:
+        if self._publisher is None:
+            self._publisher = MQResultPublisher(self.connection, self.worker_id)
+        return self._publisher
 
     async def process_message(self, message: aio_pika.IncomingMessage) -> None:
         """
@@ -40,7 +47,7 @@ class RPCWorker(BaseWorker):
                 # response_obj = {"predictions": predictions}
                 body = json.dumps(predictions).encode()
 
-                await self._send_rpc_response(
+                await self.publisher.publish_rpc_response(
                     body=body,
                     correlation_id=message.correlation_id,
                     reply_to=message.reply_to
@@ -51,7 +58,7 @@ class RPCWorker(BaseWorker):
                 logger.error(f"[{self.worker_id}] Ошибка при обработке RPC запроса: {e}")
                 try:
                     error_obj = {"error": str(e)}
-                    await self._send_rpc_response(
+                    await self.publisher.publish_rpc_response(
                         body=json.dumps(error_obj).encode(),
                         correlation_id=message.correlation_id,
                         reply_to=message.reply_to
@@ -63,24 +70,3 @@ class RPCWorker(BaseWorker):
                     )
                     raise send_err from e
 
-    @retry(
-        stop=stop_after_attempt(settings.worker.MAX_RETRIES),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
-        before_sleep=lambda retry_state: logger.info(
-            f"Ретрай отправки RPC ответа (попытка {retry_state.attempt_number}) после ошибки: {retry_state.outcome.exception()}"
-        ),
-        reraise=True
-    )
-
-    async def _send_rpc_response(self, body: bytes, correlation_id: str, reply_to: str) -> None:
-        """Вспомогательный метод для отправки ответа в RabbitMQ."""
-        async with self.connection.channel() as channel:
-            await channel.default_exchange.publish(
-                aio_pika.Message(
-                    body=body,
-                    correlation_id=correlation_id,
-                    content_type="application/json",
-                    delivery_mode=aio_pika.DeliveryMode.NOT_PERSISTENT
-                ),
-                routing_key=reply_to
-            )
